@@ -31,7 +31,7 @@ Never put `options=-c statement_timeout=…` in either URL: a pooled endpoint re
 
 Use `db:migrate`, not `prisma db push`. This schema contains a generated `tsvector` column and two GIN indexes that Prisma cannot express; `db push` diffs them away.
 
-**`P1001: Can't reach database server`** is usually not the database. Neon publishes AAAA records, and on a machine with broken IPv6 Node races both families and fails in under a second. Check with `ping -6 2606:4700:4700::1111`; if it times out, set `NODE_OPTIONS=--no-network-family-autoselection` and fix IPv6 on the network.
+**`P1001` / `ETIMEDOUT`** is usually not the database. Neon publishes AAAA records, and on a machine with broken IPv6 Node races both families and fails in under a second — surfacing as `P1001` from the CLI and `PrismaClientKnownRequestError { code: "ETIMEDOUT" }` from the seed. Every `npm run` script that touches the database goes through [scripts/db-cli.mjs](scripts/db-cli.mjs), which handles it. Running `npx prisma …` directly needs `NODE_OPTIONS=--no-network-family-autoselection`. Check with `ping -6 2606:4700:4700::1111`; the real fix is working IPv6.
 
 ### Deploying
 
@@ -222,3 +222,5 @@ Title, description, keywords, favicon, canonical and social cards all come from 
 ## Not included
 
 `/order`, `/login` and `/register` are referenced by buy buttons but have no routes yet, so those links use `prefetch={false}`. Seeded prices, stats and member counts are placeholders — edit them in the panel before launch.
+#   f l a z z g r o u p  
+ 
