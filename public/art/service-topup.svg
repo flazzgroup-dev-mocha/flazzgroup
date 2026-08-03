@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" width="480" height="300" role="img">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#123C7B"/><stop offset="1" stop-color="#0D1B3D"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF0B8"/><stop offset=".6" stop-color="#FFD54A"/><stop offset="1" stop-color="#C9931A"/>
+    </linearGradient>
+    <radialGradient id="halo" cx=".5" cy=".45" r=".5">
+      <stop offset="0" stop-color="#FFD54A" stop-opacity=".45"/><stop offset="1" stop-color="#FFD54A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="300" fill="url(#bg)"/>
+  <g opacity=".45" stroke="#2E7CF6" stroke-opacity=".35">
+    <path d="M-20 250 L200 30M60 300 L300 60M180 300 L440 40M300 300 L500 100"/>
+  </g>
+  <circle cx="240" cy="140" r="120" fill="url(#halo)"/>
+  <g transform="translate(240 148)">
+    <ellipse cy="52" rx="86" ry="26" fill="#04101f" opacity=".55"/>
+    <ellipse cy="34" rx="86" ry="28" fill="url(#gold)"/>
+    <ellipse cy="6" rx="86" ry="28" fill="url(#gold)"/>
+    <ellipse cy="-24" rx="86" ry="28" fill="url(#gold)"/>
+    <ellipse cy="-27" rx="52" ry="16" fill="#fff" fill-opacity=".2"/>
+    <path d="M8-58 -20-14h16l-10 40 34-50H12z" fill="#071321" fill-opacity=".7"/>
+  </g>
+  <g fill="#FFD54A" opacity=".8">
+    <circle cx="86" cy="72" r="4"/><circle cx="404" cy="96" r="5"/><circle cx="374" cy="222" r="3.5"/><circle cx="108" cy="216" r="3"/>
+  </g>
+</svg>

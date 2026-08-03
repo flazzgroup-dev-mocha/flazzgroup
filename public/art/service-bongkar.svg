@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" width="480" height="300" role="img">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B3D"/><stop offset="1" stop-color="#071321"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7FB0FF"/><stop offset="1" stop-color="#2E7CF6"/>
+    </linearGradient>
+    <radialGradient id="halo2" cx=".5" cy=".45" r=".5">
+      <stop offset="0" stop-color="#2E7CF6" stop-opacity=".55"/><stop offset="1" stop-color="#2E7CF6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="300" fill="url(#bg2)"/>
+  <circle cx="240" cy="140" r="130" fill="url(#halo2)"/>
+  <g transform="translate(240 150)">
+    <path d="M0-96 84-58v58c0 46-34 80-84 96-50-16-84-50-84-96v-58z" fill="url(#blue)" opacity=".22" stroke="#7FB0FF" stroke-opacity=".55" stroke-width="2"/>
+    <rect x="-34" y="-18" width="68" height="52" rx="12" fill="url(#blue)"/>
+    <path d="M-18-18v-16a18 18 0 0 1 36 0v16" fill="none" stroke="#FFD54A" stroke-width="8" stroke-linecap="round"/>
+    <circle cy="6" r="7" fill="#071321"/>
+  </g>
+  <g stroke="#2E7CF6" stroke-opacity=".4" fill="none">
+    <circle cx="240" cy="150" r="140"/><circle cx="240" cy="150" r="168" stroke-dasharray="6 12"/>
+  </g>
+</svg>

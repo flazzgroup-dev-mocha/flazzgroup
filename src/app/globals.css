@@ -1,26 +1,797 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================
+   FLAZZ GROUP — Design tokens
+   Identity: deep navy vault + volt blue glow + royal gold seam
+   ============================================================ */
+
+@theme {
+  /* Core palette */
+  --color-ink: #071321;
+  --color-abyss: #0d1b3d;
+  --color-deep: #123c7b;
+  --color-volt: #2e7cf6;
+  --color-gold: #ffd54a;
+
+  /* Derived surfaces */
+  --color-ink-800: #050e19;
+  --color-abyss-600: #142a5c;
+  --color-volt-300: #7fb0ff;
+  --color-gold-600: #d9a81f;
+
+  /* Text */
+  --color-foam: #eef4ff;
+  --color-mist: #9db0d0;
+  /* Lifted from #6d80a3: the old value fell to 3.9:1 on glass surfaces. */
+  --color-fog: #8296b8;
+
+  /* Semantic */
+  --color-online: #35e0a1;
+
+  /* Type */
+  --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-data), ui-monospace, monospace;
+
+  /* Radii */
+  --radius-card: 1.5rem;
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Signature diagonal — the "Flazz seam" angle, reused everywhere */
+  --seam: 115deg;
+
+  /* Keyframes */
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-drift: drift 14s ease-in-out infinite;
+  --animate-orbit: orbit 22s linear infinite;
+  --animate-pulse-glow: pulse-glow 4.5s ease-in-out infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(2.5deg);
+  }
+}
+
+@keyframes orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes acc-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes acc-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+@layer base {
+  * {
+    border-color: color-mix(in oklab, var(--color-deep) 40%, transparent);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+    -webkit-tap-highlight-color: transparent;
+    /* `clip`, not `hidden` — hidden would turn the root into a scroll
+       container and break the sticky FAQ aside. */
+    overflow-x: clip;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-foam);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    overflow-x: clip;
+    /* Layered vault lighting — never flat */
+    background-image:
+      radial-gradient(60rem 40rem at 82% -6%, rgb(46 124 246 / 0.22), transparent 62%),
+      radial-gradient(48rem 36rem at 6% 4%, rgb(18 60 123 / 0.4), transparent 60%),
+      radial-gradient(70rem 50rem at 50% 108%, rgb(255 213 74 / 0.08), transparent 58%),
+      linear-gradient(180deg, #071321 0%, #081831 45%, #061020 100%);
+    background-attachment: fixed;
+  }
+
+  /* Film grain — removes the plastic flat-color look */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+  }
+
+  ::selection {
+    background: var(--color-gold);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #050e19;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #123c7b, #0d1b3d);
+    border-radius: 999px;
+    border: 2px solid #050e19;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #2e7cf6, #123c7b);
+  }
+}
+
+/* ============================================================
+   Components / utilities
+   ============================================================ */
+
+@layer components {
+  /* --- Glass surfaces --- */
+  .glass {
+    background-image: linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.075),
+      rgb(255 255 255 / 0.02) 45%,
+      rgb(13 27 61 / 0.35)
+    );
+    background-color: rgb(8 20 40 / 0.55);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgb(255 255 255 / 0.09);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.12),
+      0 28px 60px -24px rgb(3 8 20 / 0.9);
+  }
+
+  .glass-soft {
+    background-color: rgb(13 27 61 / 0.42);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    border: 1px solid rgb(255 255 255 / 0.07);
+  }
+
+  /* Same lighting system as .glass, but opaque enough to float over anything.
+     .glass sits at 55% ink, which reads beautifully on a dark section and
+     falls apart over bright artwork — the support panel can be over the hero
+     banner, where body text has to stay legible regardless of what is behind
+     it. Use this for surfaces that are not anchored to a known background. */
+  .glass-solid {
+    background-image: linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.07),
+      rgb(255 255 255 / 0.018) 45%,
+      rgb(13 27 61 / 0.5)
+    );
+    background-color: rgb(7 17 34 / 0.965);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.12),
+      0 30px 70px -20px rgb(3 8 20 / 0.95);
+  }
+
+  /* --- Signature: the Flazz seam sweep ---
+     A single diagonal light pass at --seam. Reused on every premium card
+     so the whole page reads as one lighting system, not scattered effects. */
+  .seam {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .seam::after {
+    content: "";
+    position: absolute;
+    top: -60%;
+    bottom: -60%;
+    left: -80%;
+    width: 45%;
+    z-index: 1;
+    pointer-events: none;
+    transform: translateX(-40%) rotate(25deg);
+    background: linear-gradient(
+      var(--seam),
+      transparent,
+      rgb(255 255 255 / 0.13) 45%,
+      rgb(255 213 74 / 0.14) 55%,
+      transparent
+    );
+    opacity: 0;
+    transition:
+      transform 0.85s var(--ease-out-soft),
+      opacity 0.4s ease;
+  }
+
+  .seam:hover::after,
+  .seam:focus-within::after {
+    opacity: 1;
+    transform: translateX(340%) rotate(25deg);
+  }
+
+  /* --- Lift interaction --- */
+  .lift {
+    transition:
+      transform 0.4s var(--ease-out-soft),
+      border-color 0.4s ease,
+      box-shadow 0.4s ease;
+    will-change: transform;
+  }
+
+  .lift:hover,
+  .lift:focus-within {
+    transform: translateY(-6px);
+    border-color: rgb(46 124 246 / 0.55);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.16),
+      0 0 0 1px rgb(46 124 246 / 0.2),
+      0 30px 60px -28px rgb(46 124 246 / 0.6);
+  }
+
+  /* --- Gold hairline divider --- */
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 213 74 / 0.55) 22%,
+      rgb(46 124 246 / 0.5) 62%,
+      transparent
+    );
+  }
+
+  /* --- Text gradients --- */
+  .text-royal {
+    background: linear-gradient(100deg, #fff8e1 0%, #ffd54a 38%, #d9a81f 66%, #fff3cd 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .text-volt {
+    background: linear-gradient(100deg, #ffffff 0%, #a9c9ff 45%, #2e7cf6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* --- Eyebrow label --- */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-gold);
+  }
+
+  /* --- Horizontal snap rail (mobile card scrollers) --- */
+  .rail {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+  }
+
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail > * {
+    scroll-snap-align: start;
+    flex: 0 0 82%;
+  }
+
+  @media (min-width: 768px) {
+    .rail {
+      display: grid;
+      overflow: visible;
+    }
+    .rail > * {
+      flex: initial;
+    }
+  }
+
+  /* --- Edge fade for marquee --- */
+  .fade-x {
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+}
+
+/* ============================================================
+   Swiper theming
+   ============================================================ */
+
+.flazz-hero .swiper-pagination {
+  position: absolute;
+  bottom: 1.25rem !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 20;
+}
+
+.flazz-hero .swiper-pagination-bullet {
+  width: 28px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.22);
+  opacity: 1;
+  transition: all 0.35s var(--ease-out-soft);
+  margin: 0 !important;
+}
+
+.flazz-hero .swiper-pagination-bullet-active {
+  width: 52px;
+  background: linear-gradient(90deg, #2e7cf6, #ffd54a);
+  box-shadow: 0 0 18px rgb(255 213 74 / 0.5);
+}
+
+/* Arrows sit with the pagination in the bottom-right gutter so they never
+   overlap the headline.
+   The class is doubled on purpose: Swiper's own `.swiper-horizontal
+   .swiper-button-prev` rules have the same specificity as a single-class
+   scope and ship in a later stylesheet, so they would otherwise win. */
+.flazz-hero .swiper-button-next.swiper-button-next,
+.flazz-hero .swiper-button-prev.swiper-button-prev {
+  top: auto;
+  bottom: 1rem;
+  left: auto;
+  margin-top: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--color-foam);
+  background: rgb(8 20 40 / 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  transition:
+    transform 0.3s var(--ease-out-soft),
+    background 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.flazz-hero .swiper-button-next:hover,
+.flazz-hero .swiper-button-prev:hover {
+  background: rgb(46 124 246 / 0.35);
+  border-color: rgb(255 213 74 / 0.5);
+  transform: scale(1.08);
+}
+
+.flazz-hero .swiper-button-prev.swiper-button-prev {
+  right: 5rem;
+}
+
+.flazz-hero .swiper-button-next.swiper-button-next {
+  right: 1.75rem;
+}
+
+.flazz-hero .swiper-button-next::after,
+.flazz-hero .swiper-button-prev::after {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* Pagination moves left to balance the arrow cluster on desktop */
+@media (min-width: 768px) {
+  .flazz-hero .swiper-pagination {
+    justify-content: flex-start;
+    padding-left: 2.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .flazz-hero .swiper-pagination {
+    padding-left: 3.75rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .flazz-hero .swiper-button-next,
+  .flazz-hero .swiper-button-prev {
+    display: none;
+  }
+}
+
+/* Slide content enters only on the active slide — orchestrated, not scattered */
+.flazz-hero [data-anim] {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+}
+
+.flazz-hero .swiper-slide-active [data-anim] {
+  animation: slide-enter 0.75s var(--ease-out-soft) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes slide-enter {
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flazz-hero [data-anim] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .lift:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Article body — shared by the published page and the editor,
+   so what an author sees is what a reader gets.
+   ============================================================ */
+
+.article-body {
+  color: var(--color-mist);
+  font-size: 1.0625rem;
+  line-height: 1.8;
+}
+
+@media (min-width: 640px) {
+  .article-body {
+    font-size: 1.125rem;
+    line-height: 1.85;
+  }
+}
+
+.article-body > * + * {
+  margin-top: 1.35em;
+}
+
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  color: var(--color-foam);
+  scroll-margin-top: 7rem;
+  letter-spacing: -0.02em;
+}
+
+.article-body h2 {
+  margin-top: 2.4em;
+  font-size: 1.6em;
+  line-height: 1.25;
+}
+
+.article-body h3 {
+  margin-top: 1.9em;
+  font-size: 1.28em;
+  line-height: 1.3;
+}
+
+.article-body h4 {
+  margin-top: 1.6em;
+  font-size: 1.1em;
+}
+
+/* A gold tick before every h2 — the same seam accent as the rest of the site */
+.article-body h2::before {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-gold), transparent);
+}
+
+.article-body strong {
+  color: var(--color-foam);
+  font-weight: 600;
+}
+
+.article-body a {
+  color: var(--color-gold);
+  text-decoration: underline;
+  text-decoration-color: rgb(255 213 74 / 0.35);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s ease;
+}
+
+.article-body a:hover {
+  text-decoration-color: var(--color-gold);
+}
+
+.article-body ul,
+.article-body ol {
+  padding-left: 1.35em;
+}
+
+.article-body ul {
+  list-style: none;
+  padding-left: 1.5em;
+}
+
+.article-body ul > li {
+  position: relative;
+}
+
+.article-body ul > li::before {
+  content: "";
+  position: absolute;
+  top: 0.72em;
+  left: -1.1em;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  opacity: 0.75;
+}
+
+.article-body ol {
+  list-style: decimal;
+}
+
+.article-body ol > li::marker {
+  color: var(--color-gold);
+  font-weight: 700;
+}
+
+.article-body li + li {
+  margin-top: 0.5em;
+}
+
+.article-body blockquote {
+  margin-inline: 0;
+  padding: 1.1em 1.4em;
+  border-left: 3px solid var(--color-gold);
+  border-radius: 0 1rem 1rem 0;
+  background: rgb(255 213 74 / 0.06);
+  color: var(--color-foam);
+  font-size: 1.02em;
+}
+
+.article-body blockquote > * + * {
+  margin-top: 0.8em;
+}
+
+.article-body :not(pre) > code {
+  padding: 0.15em 0.45em;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--color-gold);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.article-body pre {
+  overflow-x: auto;
+  padding: 1.15em 1.35em;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 1rem;
+  background: #050e19;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  line-height: 1.7;
+  tab-size: 2;
+}
+
+.article-body pre code {
+  color: #cfe0ff;
+}
+
+.article-body img {
+  width: 100%;
+  height: auto;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 1.15rem;
+}
+
+.article-body figure figcaption {
+  margin-top: 0.7em;
+  color: var(--color-fog);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.article-body hr {
+  border: 0;
+  height: 1px;
+  margin-block: 2.6em;
+  background: linear-gradient(90deg, transparent, rgb(255 213 74 / 0.4), transparent);
+}
+
+/* Tables scroll rather than widening the page */
+.article-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.article-body th,
+.article-body td {
+  padding: 0.7em 0.9em;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  text-align: left;
+  vertical-align: top;
+}
+
+.article-body th {
+  background: rgb(255 255 255 / 0.04);
+  color: var(--color-foam);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.article-body iframe {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: auto;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 1.15rem;
+}
+
+/* Callouts */
+.article-body [data-callout] {
+  padding: 1.1em 1.35em;
+  border: 1px solid rgb(46 124 246 / 0.3);
+  border-radius: 1.1rem;
+  background: rgb(46 124 246 / 0.08);
+  color: var(--color-foam);
+}
+
+.article-body [data-callout="tip"] {
+  border-color: rgb(53 224 161 / 0.3);
+  background: rgb(53 224 161 / 0.08);
+}
+
+.article-body [data-callout="warning"] {
+  border-color: rgb(255 213 74 / 0.35);
+  background: rgb(255 213 74 / 0.08);
+}
+
+.article-body [data-callout] > * + * {
+  margin-top: 0.7em;
+}
+
+/* Tiptap placeholder */
+.article-body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--color-fog);
+  pointer-events: none;
 }

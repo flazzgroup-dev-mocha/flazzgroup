@@ -1,0 +1,7 @@
+import { reorderRoute } from "@/lib/crud";
+import { applyOrder } from "@/lib/reorder";
+
+export const { POST } = reorderRoute({
+  resource: "faq",
+  apply: (ids) => applyOrder("faq", ids),
+});

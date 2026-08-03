@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img">
+  <defs>
+    <linearGradient id="tp-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF0B8"/><stop offset=".55" stop-color="#FFD54A"/><stop offset="1" stop-color="#D9A81F"/>
+    </linearGradient>
+    <radialGradient id="tp-halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#FFD54A" stop-opacity=".45"/><stop offset="1" stop-color="#FFD54A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="128" cy="128" r="112" fill="url(#tp-halo)"/>
+  <g transform="translate(128 128) rotate(-10)">
+    <path d="M-92-46h184v22a18 18 0 0 0 0 36v22h-184v-22a18 18 0 0 0 0-36z" fill="url(#tp-gold)"/>
+    <path d="M-24-46v92" stroke="#071321" stroke-opacity=".35" stroke-width="3" stroke-dasharray="7 9"/>
+    <path d="M-50-14 -66 10h9l-6 22 20-28h-10z" fill="#071321" fill-opacity=".7"/>
+    <g fill="#071321" fill-opacity=".7">
+      <rect x="0" y="-18" width="62" height="10" rx="5"/>
+      <rect x="0" y="-2" width="44" height="8" rx="4"/>
+      <rect x="0" y="12" width="54" height="8" rx="4"/>
+    </g>
+  </g>
+</svg>

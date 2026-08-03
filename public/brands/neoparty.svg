@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img">
+  <defs>
+    <linearGradient id="bg-neoparty" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16305F"/><stop offset="1" stop-color="#0A1730"/>
+    </linearGradient>
+    <radialGradient id="gl-neoparty" cx=".5" cy=".4" r=".55">
+      <stop offset="0" stop-color="#7FB0FF" stop-opacity=".38"/><stop offset="1" stop-color="#7FB0FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="120" height="120" rx="32" fill="url(#bg-neoparty)"/>
+  <rect width="120" height="120" rx="32" fill="url(#gl-neoparty)"/>
+  <rect x="1" y="1" width="118" height="118" rx="31" fill="none" stroke="#7FB0FF" stroke-opacity=".4" stroke-width="2"/>
+  <g transform="translate(60 60)"><path d="M0-32 8-8h26L14 8l8 24L0 18-22 32l8-24-20-16h26z" fill="#7FB0FF"/></g>
+</svg>

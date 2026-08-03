@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img">
+  <defs>
+    <linearGradient id="bg-thanoz" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16305F"/><stop offset="1" stop-color="#0A1730"/>
+    </linearGradient>
+    <radialGradient id="gl-thanoz" cx=".5" cy=".4" r=".55">
+      <stop offset="0" stop-color="#A374FF" stop-opacity=".38"/><stop offset="1" stop-color="#A374FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="120" height="120" rx="32" fill="url(#bg-thanoz)"/>
+  <rect width="120" height="120" rx="32" fill="url(#gl-thanoz)"/>
+  <rect x="1" y="1" width="118" height="118" rx="31" fill="none" stroke="#A374FF" stroke-opacity=".4" stroke-width="2"/>
+  <g transform="translate(60 60)"><path d="M0-32 28-16v32L0 32-28 16v-32z" fill="none" stroke="#A374FF" stroke-width="4"/><path d="M0-14 14-6v14L0 16-14 8V-6z" fill="#A374FF"/></g>
+</svg>

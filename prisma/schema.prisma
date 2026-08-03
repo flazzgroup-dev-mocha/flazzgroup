@@ -1,0 +1,635 @@
+// FLAZZ GROUP — content schema
+//
+// Every piece of copy, image and ordering the homepage renders lives here, so
+// the site owner can change the whole page from /admin without a deploy.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- auth
+
+/// Two roles, deliberately.
+///
+/// SUPER_ADMIN owns the site: everything above, plus the settings that decide
+/// what the site *is* — its URL, its SEO, its tracking IDs — and the accounts
+/// themselves. ADMIN is customer service: all the day-to-day content, none of
+/// the switches that can take the site off the internet or redirect its
+/// analytics somewhere else.
+///
+/// There is no third role and no per-user permission table on purpose. Every
+/// additional level is another combination nobody tests, and the useful
+/// boundary here is exactly one: can this person change how the system is
+/// configured, or only what it displays.
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+/// A person who can sign in to /admin.
+///
+/// Still called Admin, and still stored in `admins`. The panel section is
+/// "Users" because that is what an operator calls them, but renaming the table
+/// would mean rewriting the ActivityLog relation and every reference for no
+/// behavioural gain, and a rename is the one migration that cannot be rolled
+/// back cleanly if it goes wrong mid-deploy.
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  /// Optional profile picture. Uploaded through the usual media pipeline.
+  avatarUrl    String    @default("")
+  /// Suspension without deletion. An inactive account keeps its history, its
+  /// audit trail and its authored content, and simply cannot sign in.
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  activities ActivityLog[]
+  auditTrail AuditLog[]
+
+  /// The Users list sorts by role then name, and filters on active state.
+  @@index([role, isActive])
+  @@map("admins")
+}
+
+/// What happened, who did it, and from where.
+enum AuditAction {
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  ADMIN_CREATED
+  ADMIN_UPDATED
+  ADMIN_DELETED
+  ADMIN_ENABLED
+  ADMIN_DISABLED
+  ROLE_CHANGED
+  PASSWORD_RESET
+  SETTINGS_CHANGED
+  ACCESS_DENIED
+}
+
+/// Security events, kept separate from ActivityLog.
+///
+/// ActivityLog answers "what changed on the website" and is pruned to the last
+/// 200 entries to keep the dashboard feed short. This answers "who did
+/// something sensitive, when, and from where", which is a different question
+/// with a different retention need — a failed-login record is worthless if it
+/// was rotated out by somebody editing FAQs.
+///
+/// `actorId` is nullable and `actorEmail` is denormalised because the two most
+/// interesting records are a failed login for an address that does not exist,
+/// and the trail of an account that has since been deleted. Both must survive.
+model AuditLog {
+  id     String      @id @default(cuid())
+  action AuditAction
+
+  actorId    String?
+  actor      Admin?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  /// Kept verbatim so the row still names someone after the account is gone.
+  actorEmail String  @default("")
+
+  /// Who or what the action was performed on, when that differs from the actor.
+  targetId    String?
+  targetEmail String  @default("")
+
+  /// Human-readable detail, e.g. "role changed ADMIN to SUPER_ADMIN".
+  summary   String @default("")
+  ipAddress String @default("")
+  userAgent String @default("")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  REORDER
+  LOGIN
+}
+
+/// Feeds "Recent activity" and "Last updated" on the dashboard.
+model ActivityLog {
+  id      String         @id @default(cuid())
+  action  ActivityAction
+  /// Resource key, e.g. "brands" — matches the admin route segment.
+  entity  String
+  /// Human label of the affected row, e.g. "ROYALXP".
+  label   String
+  adminId String?
+  admin   Admin?         @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt(sort: Desc)])
+  /// Postgres does not index foreign keys automatically; without this the
+  /// dashboard join and ON DELETE SET NULL both fall back to a sequential scan.
+  @@index([adminId])
+  @@map("activity_logs")
+}
+
+// ------------------------------------------------------------ settings
+
+/// Which corner the floating chat launcher sits in.
+enum ChatPosition {
+  LEFT
+  RIGHT
+}
+
+/// Single row, always id = "settings".
+model WebsiteSettings {
+  id String @id @default("settings")
+
+  // Identity
+  siteName        String @default("FLAZZ GROUP")
+  siteDescription String @default("")
+  siteUrl         String @default("http://localhost:3000")
+  logoUrl         String @default("/logo.svg")
+  faviconUrl      String @default("/logo.svg")
+
+  // SEO
+  seoTitle       String  @default("FLAZZ GROUP")
+  seoDescription String  @default("")
+  seoKeywords    String  @default("")
+  ogImageUrl     String?
+
+  // Navbar ticker
+  tickerEnabled Boolean @default(true)
+  tickerText    String  @default("")
+
+  // Footer
+  footerTagline    String @default("")
+  footerCopyright  String @default("")
+  footerDisclaimer String @default("")
+
+  // Social / contact — used by navbar, footer and the FAQ call to action
+  telegramUrl  String @default("")
+  whatsappUrl  String @default("")
+  instagramUrl String @default("")
+  tiktokUrl    String @default("")
+  youtubeUrl   String @default("")
+
+  // Floating support chat
+  //
+  // The contact links themselves are `whatsappUrl` / `telegramUrl` above —
+  // the widget, the footer and the FAQ button all read the same value, so a
+  // changed number can never be right in one place and stale in another.
+  chatEnabled  Boolean      @default(true)
+  /// Optional. Falls back to `logoUrl` when empty.
+  chatLogoUrl  String       @default("")
+  chatTitle    String       @default("FLAZZ GROUP")
+  chatSubtitle String       @default("Online 24 Jam")
+  chatGreeting String       @default("")
+  chatPosition ChatPosition @default(RIGHT)
+  /// Array of { label, message, channel } — see chatQuickActionSchema.
+  chatQuickActions Json     @default("[]")
+
+  // ------------------------------------------------------------ analytics
+  //
+  // IDs live here rather than only in the environment so a marketer can swap a
+  // pixel without a redeploy. Each `NEXT_PUBLIC_*` variable is the fallback,
+  // used when the corresponding column is blank — see lib/analytics/config.ts.
+  //
+  // Every integration has its own switch: turning one off must not require
+  // deleting the ID, or reconnecting it later means finding it again.
+  gtmId                  String  @default("")
+  gtmEnabled             Boolean @default(true)
+  /// Only needed when GA4 is loaded directly rather than through GTM.
+  ga4Id                  String  @default("")
+  ga4Enabled             Boolean @default(true)
+  metaPixelId            String  @default("")
+  metaPixelEnabled       Boolean @default(true)
+  clarityId              String  @default("")
+  clarityEnabled         Boolean @default(true)
+  googleAdsId            String  @default("")
+  googleAdsConversionLabel String @default("")
+  googleAdsEnabled       Boolean @default(true)
+  /// google-site-verification content, for Search Console.
+  googleSiteVerification String  @default("")
+
+  // Homepage section switches
+  showHero      Boolean @default(true)
+  showPopular   Boolean @default(true)
+  showProducts  Boolean @default(true)
+  showBrands    Boolean @default(true)
+  showFeatures  Boolean @default(true)
+  showPayment   Boolean @default(true)
+  showCommunity Boolean @default(true)
+  showFaq       Boolean @default(true)
+
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("website_settings")
+}
+
+// ---------------------------------------------------------------- hero
+
+enum Accent {
+  GOLD
+  VOLT
+}
+
+/// A hero slide is one piece of artwork.
+///
+/// The headline, subtitle, chips and buttons that used to live here are part of
+/// the image a designer exports, so the CMS manages the picture and where it
+/// points and nothing else. The old text columns are still declared below —
+/// defaulted, unread — so this release can be rolled back without losing the
+/// copy that was written under the previous model. They can be dropped once the
+/// deploy has proven itself.
+model HeroBanner {
+  id String @id @default(cuid())
+
+  /// Desktop artwork. Required — a slide with no image is not a slide.
+  imageUrl String
+  /// Optional portrait crop. Falls back to `imageUrl` when empty.
+  mobileImageUrl String @default("")
+  /// Describes the artwork for screen readers and image search.
+  imageAlt String @default("")
+  /// Optional click-through. Empty renders the slide as a plain image.
+  destinationUrl String @default("")
+
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  // ---------------------------------------------- deprecated, unread
+  eyebrow       String   @default("")
+  title         String   @default("")
+  highlight     String   @default("")
+  subtitle      String   @default("")
+  bullets       String[] @default([])
+  metaItems     String[] @default([])
+  buttonText    String   @default("")
+  buttonLink    String   @default("")
+  secondaryText String   @default("")
+  secondaryLink String   @default("")
+  accent        Accent   @default(GOLD)
+
+  @@index([isActive, order])
+  @@map("hero_banners")
+}
+
+/// One uploaded file.
+///
+/// Cloudinary owns the bytes; this row owns the metadata, which is what makes
+/// a delete able to reclaim remote storage and an orphan able to be found.
+/// Keyed by URL as well as public id because that is what the content rows
+/// store, so a lookup needs no extra column on every model.
+model MediaAsset {
+  id        String @id @default(cuid())
+  publicId  String @unique
+  secureUrl String @unique
+
+  width  Int
+  height Int
+  format String
+  bytes  Int
+
+  altText          String @default("")
+  originalFilename String @default("")
+  /// Cloudinary folder, e.g. "flazzgroup/banner".
+  folder           String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([folder, createdAt(sort: Desc)])
+  @@map("media_assets")
+}
+
+/// The four-up proof strip beneath the hero.
+model HeroStat {
+  id       String  @id @default(cuid())
+  value    String
+  label    String
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("hero_stats")
+}
+
+// ------------------------------------------------------------- popular
+
+model PopularService {
+  id          String  @id @default(cuid())
+  title       String
+  description String
+  priceLabel  String  @default("")
+  badge       String  @default("")
+  href        String  @default("#")
+  imageUrl    String
+  accent      Accent  @default(GOLD)
+  isActive    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("popular_services")
+}
+
+// ------------------------------------------------------------ products
+
+enum ProductTier {
+  COIN
+  SERVICE
+}
+
+/// How a product's badge is coloured.
+///
+/// The colour used to be inferred from the badge *text* — a literal
+/// `badge === "Terlaris"` in the section component — so every other label an
+/// editor invented ("Best Value", "👑 VIP") silently came out blue, and giving
+/// one of them the gold treatment meant a code change and a deploy. The two
+/// values are the two treatments the design actually has, not a colour picker:
+/// an arbitrary hex here would let the panel produce badges that fail contrast
+/// against the card.
+enum BadgeColor {
+  DEFAULT
+  GOLD
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  title       String
+  unit        String      @default("")
+  description String      @default("")
+  /// Rupiah, stored as whole units (no decimals).
+  price       Int
+  strikePrice Int?
+  badge       String      @default("")
+  /// Only meaningful when `badge` is set. Not nullable: "no colour chosen" and
+  /// "the default colour" are the same thing, and a NOT NULL column with a
+  /// default means no read path anywhere has to handle a missing value.
+  badgeColor  BadgeColor  @default(DEFAULT)
+  tier        ProductTier @default(COIN)
+  imageUrl    String
+  buttonLink  String      @default("/order")
+  isActive    Boolean     @default(true)
+  order       Int         @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("products")
+}
+
+// -------------------------------------------------------------- brands
+
+enum BrandStatus {
+  ONLINE
+  MAINTENANCE
+  COMING_SOON
+}
+
+model Brand {
+  id             String      @id @default(cuid())
+  name           String
+  description    String      @default("")
+  logoUrl        String
+  link           String      @default("#")
+  status         BrandStatus @default(ONLINE)
+  /// Hex accent used for the card's hue wash.
+  hue            String      @default("#2E7CF6")
+  showOnHomepage Boolean     @default(true)
+  order          Int         @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([showOnHomepage, order])
+  @@map("brands")
+}
+
+// ------------------------------------------------------------ features
+
+model Feature {
+  id String @id @default(cuid())
+  /// Icon key resolved by the homepage icon map.
+  icon        String  @default("zap")
+  title       String
+  description String  @default("")
+  isActive    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("features")
+}
+
+// ------------------------------------------------------------ payments
+
+model PaymentMethod {
+  id   String @id @default(cuid())
+  name String
+  /// Short category label, e.g. "E-wallet".
+  kind String @default("")
+  /// Optional uploaded logo; falls back to the initials tile when empty.
+  logoUrl  String?
+  hue      String  @default("#2E7CF6")
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("payment_methods")
+}
+
+// ----------------------------------------------------------- community
+
+model CommunityLink {
+  id String @id @default(cuid())
+  /// Icon key: telegram | whatsapp | megaphone | users
+  icon        String @default("telegram")
+  title       String
+  description String @default("")
+  /// Small mono chip, e.g. "Balas < 3 menit".
+  meta        String  @default("")
+  ctaLabel    String  @default("Buka")
+  url         String
+  hue         String  @default("#2E7CF6")
+  isActive    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("community_links")
+}
+
+// ----------------------------------------------------------------- faq
+
+model Faq {
+  id       String  @id @default(cuid())
+  question String
+  answer   String
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([isActive, order])
+  @@map("faqs")
+}
+
+// ================================================================== blog
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Byline shown on articles. Separate from Admin: who writes is editorial,
+/// who can log in is access control, and they should not be the same table.
+model Author {
+  id        String @id @default(cuid())
+  name      String
+  slug      String @unique
+  avatarUrl String @default("")
+  bio       String @default("")
+  /// Optional public profile, used for the Person schema's sameAs.
+  websiteUrl String @default("")
+
+  posts BlogPost[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("authors")
+}
+
+model BlogCategory {
+  id          String @id @default(cuid())
+  name        String
+  slug        String @unique
+  description String @default("")
+  order       Int    @default(0)
+
+  posts BlogPost[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([order])
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  posts BlogPost[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("blog_tags")
+}
+
+/// Uploaded article imagery. Doubles as a media library: a row with no post
+/// is simply an image that has been uploaded but not placed yet.
+model BlogImage {
+  id     String  @id @default(cuid())
+  url    String
+  alt    String  @default("")
+  width  Int?
+  height Int?
+  bytes  Int?
+  postId String?
+  post   BlogPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([postId])
+  @@index([createdAt(sort: Desc)])
+  @@map("blog_images")
+}
+
+model BlogPost {
+  id      String @id @default(cuid())
+  title   String
+  slug    String @unique
+  excerpt String @default("")
+  /// Sanitised HTML produced by the editor.
+  content String @default("")
+  /// Plain text mirror of `content`. Feeds full-text search and reading time
+  /// so neither has to parse HTML at query time.
+  contentText String @default("")
+
+  featuredImage    String @default("")
+  featuredImageAlt String @default("")
+
+  // SEO
+  seoTitle       String @default("")
+  seoDescription String @default("")
+  focusKeyword   String @default("")
+  canonicalUrl   String @default("")
+  /// Lets a thin or duplicated article be kept out of the index by hand.
+  noIndex        Boolean @default(false)
+
+  status PostStatus @default(DRAFT)
+  /// A published post with a future date is a scheduled post. Deriving the
+  /// state from the date means no cron job can forget to flip a flag.
+  publishedAt DateTime? @db.Timestamptz(3)
+
+  readingMinutes Int @default(1)
+
+  authorId   String?
+  author     Author?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  categoryId String?
+  category   BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  tags   BlogTag[]
+  images BlogImage[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  /// Weighted full-text index over title, excerpt, focus keyword and body.
+  ///
+  /// A Postgres generated column, which Prisma cannot express — the expression
+  /// lives in migration 20260728230000_blog and that migration stays the source
+  /// of truth. It is declared here only so `prisma migrate dev` sees it as part
+  /// of the schema: without this line the next migration silently offers to
+  /// DROP it, which would take full-text search down with it.
+  searchVector Unsupported("tsvector")?
+
+  /// Declared so migrations do not offer to drop them. Both are created in
+  /// 20260728230000_blog, which remains the source of truth for their opclass.
+  @@index([searchVector], map: "blog_posts_search_idx", type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "blog_posts_title_trgm_idx", type: Gin)
+  /// The public list query: published, dated, newest first.
+  @@index([status, publishedAt(sort: Desc)])
+  /// Category archives use the same shape with one more equality column.
+  @@index([categoryId, status, publishedAt(sort: Desc)])
+  @@index([authorId])
+  @@map("blog_posts")
+}
