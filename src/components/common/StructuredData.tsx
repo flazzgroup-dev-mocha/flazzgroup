@@ -20,6 +20,14 @@ export function StructuredData({
 }) {
   const base = settings.siteUrl.replace(/\/$/, "");
 
+  /**
+   * Structured data is read by a crawler that has no page to resolve against,
+   * so every URL in it has to be absolute. Uploads already arrive as full
+   * Cloudinary URLs; anything served from /public does not.
+   */
+  const absolute = (url: string) =>
+    url.startsWith("http") ? url : `${base}${url}`;
+
   const sameAs = [
     settings.telegramUrl,
     settings.whatsappUrl,
@@ -34,9 +42,7 @@ export function StructuredData({
       "@id": `${base}/#organization`,
       name: settings.siteName,
       url: base,
-      logo: settings.logoUrl.startsWith("http")
-        ? settings.logoUrl
-        : `${base}${settings.logoUrl}`,
+      logo: absolute(settings.logoUrl),
       description: settings.siteDescription,
       ...(sameAs.length > 0 ? { sameAs } : {}),
       ...(settings.telegramUrl
@@ -94,7 +100,14 @@ export function StructuredData({
         item: {
           "@type": "Product",
           name: `${product.title} ${product.unit}`.trim(),
-          description: product.description,
+          /**
+           * Required for a merchant listing, and the reason Search Console
+           * reported all eight products as invalid. The column is NOT NULL, so
+           * there is always something to send; it is only omitted here if an
+           * older row predates the field being filled in.
+           */
+          ...(product.imageUrl ? { image: absolute(product.imageUrl) } : {}),
+          ...(product.description ? { description: product.description } : {}),
           brand: { "@type": "Brand", name: settings.siteName },
           offers: {
             "@type": "Offer",
