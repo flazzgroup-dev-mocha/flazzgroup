@@ -5,7 +5,7 @@ import { TrackedLink } from "@/components/analytics/TrackedLink";
 import { ArrowUpRight } from "lucide-react";
 
 import type { Settings } from "@/lib/queries";
-import type { NavLink } from "@/lib/site-nav";
+import { LEGAL_LINKS, PAGE_LINKS, resolveHref, type NavLink } from "@/lib/site-nav";
 import type { Brand, CommunityLink } from "@/lib/models";
 import { Wordmark } from "@/components/common/Wordmark";
 import {
@@ -30,23 +30,25 @@ export function Footer({
   community: CommunityLink[];
 }) {
   // Footer columns are derived from live data, so they can never drift from
-  // what the page actually shows.
+  // what the page actually shows. The "Informasi" column is the exception and
+  // is meant to be: those four routes exist unconditionally.
   const columns: Column[] = [
     { title: "Layanan", links: [...navLinks] },
     {
       title: "Brand",
       links: brands.slice(0, 5).map((brand) => ({
         label: brand.name,
-        href: brand.link,
+        href: resolveHref(brand.link),
       })),
     },
     {
       title: "Community",
       links: community.map((channel) => ({
         label: channel.title,
-        href: channel.url,
+        href: resolveHref(channel.url),
       })),
     },
+    { title: "Informasi", links: [...PAGE_LINKS, ...LEGAL_LINKS] },
   ].filter((column) => column.links.length > 0);
 
   const socials = [
@@ -130,7 +132,7 @@ export function Footer({
           {columns.length > 0 ? (
             <nav
               aria-label="Tautan footer"
-              className="grid grid-cols-2 gap-8 sm:grid-cols-3"
+              className="grid grid-cols-2 gap-8 lg:grid-cols-4"
             >
               {columns.map((column) => (
                 <div key={column.title}>

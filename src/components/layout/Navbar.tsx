@@ -130,11 +130,14 @@ export function Navbar({
             </span>
           </Link>
 
-          {/* Search — desktop */}
+          {/* Search — desktop.
+              Shown from xl, not lg: the link row now carries the standalone
+              pages as well as the homepage sections, and at 1024px the two
+              together overflowed the bar. */}
           <form
             role="search"
             onSubmit={onSearch}
-            className="relative hidden max-w-xs flex-1 lg:block xl:max-w-sm"
+            className="relative hidden max-w-xs flex-1 xl:block xl:max-w-sm"
           >
             <label htmlFor="game-search" className="sr-only">
               Cari game
@@ -159,10 +162,10 @@ export function Navbar({
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="group relative inline-flex min-h-11 items-center rounded-full px-3.5 text-sm font-medium text-mist transition-colors duration-300 hover:text-foam xl:px-4"
+                  className="group relative inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-mist transition-colors duration-300 hover:text-foam xl:px-3.5"
                 >
                   {link.label}
-                  <span className="absolute inset-x-3.5 -bottom-0.5 h-px scale-x-0 bg-linear-to-r from-transparent via-gold to-transparent transition-transform duration-400 group-hover:scale-x-100" />
+                  <span className="absolute inset-x-3 -bottom-0.5 h-px scale-x-0 bg-linear-to-r from-transparent via-gold to-transparent transition-transform duration-400 group-hover:scale-x-100 xl:inset-x-3.5" />
                 </Link>
               </li>
             ))}

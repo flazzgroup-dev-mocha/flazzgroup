@@ -1,6 +1,7 @@
 import type { Settings } from "@/lib/queries";
 import type { Brand, Faq, Product } from "@/lib/models";
 import { JsonLd } from "@/components/common/JsonLd";
+import { cloudinaryUrl, isVector } from "@/lib/media/url";
 
 /**
  * JSON-LD for the homepage: organisation, site search, product catalogue and
@@ -28,6 +29,23 @@ export function StructuredData({
   const absolute = (url: string) =>
     url.startsWith("http") ? url : `${base}${url}`;
 
+  /**
+   * An image URL a crawler should actually fetch.
+   *
+   * Same reasoning as the image sitemap and the article graph: name the
+   * delivery URL the page renders, not the stored original. Without the
+   * transform Cloudinary ignores the crawler's `Accept` header and returns the
+   * full-size PNG — for the product tiles that is a 2 MB file standing in for a
+   * thumbnail, and it is not a URL that appears anywhere in the markup.
+   *
+   * Vectors pass through untouched: `f_auto` would rasterise them, and the
+   * width cap is meaningless for a format that has no pixels.
+   */
+  const deliverable = (url: string, width?: number) => {
+    const full = absolute(url);
+    return isVector(full) ? full : cloudinaryUrl(full, { width });
+  };
+
   const sameAs = [
     settings.telegramUrl,
     settings.whatsappUrl,
@@ -42,7 +60,9 @@ export function StructuredData({
       "@id": `${base}/#organization`,
       name: settings.siteName,
       url: base,
-      logo: absolute(settings.logoUrl),
+      // No width cap: a logo is small already, and Google reads its intrinsic
+      // dimensions. `f_auto` alone is the win here.
+      logo: deliverable(settings.logoUrl),
       description: settings.siteDescription,
       ...(sameAs.length > 0 ? { sameAs } : {}),
       ...(settings.telegramUrl
@@ -106,7 +126,9 @@ export function StructuredData({
            * there is always something to send; it is only omitted here if an
            * older row predates the field being filled in.
            */
-          ...(product.imageUrl ? { image: absolute(product.imageUrl) } : {}),
+          ...(product.imageUrl
+            ? { image: deliverable(product.imageUrl, 1200) }
+            : {}),
           ...(product.description ? { description: product.description } : {}),
           brand: { "@type": "Brand", name: settings.siteName },
           offers: {

@@ -47,3 +47,30 @@ export function cloudinaryUrl(
 export function isVector(src: string) {
   return src.toLowerCase().split("?")[0].endsWith(".svg");
 }
+
+/**
+ * The delivery URL for a social card — `og:image` and `twitter:image`.
+ *
+ * Deliberately not `cloudinaryUrl`. That one exists for the browser and asks
+ * for `f_auto`, which negotiates AVIF or WebP from the `Accept` header. A
+ * social scraper sends no useful `Accept` header and several of them do not
+ * decode either format, so the negotiation is worth nothing here and can cost
+ * the preview entirely. `f_jpg` returns one predictable image to every crawler.
+ *
+ * The width cap is the point. The featured images on this site are 1600px+
+ * PNGs — the largest is just over 2 MB — and WhatsApp, which is this store's
+ * main sharing channel, quietly drops the thumbnail on images that big. A
+ * link shared to a customer then previews as a bare title. Capped at 1200px
+ * wide and re-encoded, the same card is well under 200 KB.
+ *
+ * `c_limit` only ever scales down, so a smaller original is passed through at
+ * its own size rather than upscaled.
+ */
+export function socialImageUrl(src: string, width = 1200) {
+  if (!isCloudinaryUrl(src)) return src;
+
+  return src.replace(
+    DELIVERY,
+    (match) => `${match}f_jpg,q_auto,w_${width},c_limit/`
+  );
+}

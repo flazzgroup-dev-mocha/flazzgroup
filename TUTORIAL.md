@@ -1,11 +1,29 @@
 # Tutorial — from your laptop to the live website
 
+> ## ⚠ The deployment half of this document is out of date
+>
+> This was written when the plan was to host on Vercel, where `git push`
+> triggers a build automatically. **Production now runs on a VPS behind
+> Cloudflare, and pushing to GitHub deploys nothing.** A push backs your code
+> up; the live site does not change until you SSH into the VPS and run the
+> deploy sequence yourself.
+>
+> - **To deploy → [TUTOR.md § C](./TUTOR.md#c--vps-deployment).** There is one
+>   rule that matters most: **stop the app before you build.** Building while it
+>   runs silently serves stale or unstyled pages.
+> - **To run the site day to day** — Cloudflare, Cloudinary, the admin panel,
+>   SEO, Search Console, analytics, troubleshooting → **[TUTOR.md](./TUTOR.md)**.
+>
+> **What is still correct here:** everything about Git itself — committing,
+> pushing, branches, what must never be committed, and the fact that content
+> changes made in `/admin` never need Git at all. Read it for that. Ignore
+> "Step 2 · Connect Vercel" and any claim that a push makes the site live.
+
 A practical, step-by-step guide to getting code out of this folder, onto GitHub,
 and onto the internet. Written for someone who does not use Git every day.
 
 For the one-time infrastructure setup (Neon, Cloudinary, DNS, analytics) see
-[DEPLOYMENT.md](DEPLOYMENT.md). This document is about the **workflow**: how you
-push a change and how it becomes live.
+[DEPLOYMENT.md](DEPLOYMENT.md). This document is about the **Git workflow**.
 
 - [The mental model](#the-mental-model)
 - [Step 1 · Get the project onto GitHub](#step-1--get-the-project-onto-github)
@@ -22,6 +40,13 @@ push a change and how it becomes live.
 
 Your project lives in three places. Understanding this makes every error message
 below obvious.
+
+> **The diagram below describes the old Vercel plan.** On the VPS the third
+> arrow is not automatic — it is you, running the deploy sequence over SSH:
+>
+> ```
+>   YOUR LAPTOP ──git push──► GITHUB ──✋ MANUAL: ssh + stop/build/start──► VPS
+> ```
 
 ```
    ┌───────────────┐   git push    ┌───────────────┐  auto-build  ┌───────────────┐

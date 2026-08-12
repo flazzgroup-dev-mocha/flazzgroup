@@ -4,6 +4,7 @@ import { TrackedLink } from "@/components/analytics/TrackedLink";
 import { ArrowUpRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { resolveHref } from "@/lib/site-nav";
 import type { Brand } from "@/lib/models";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/common/SectionHeading";
@@ -41,6 +42,18 @@ export function BrandsSection({ brands }: { brands: Brand[] }) {
         >
           {brands.map((brand) => {
             const isLive = brand.status === "ONLINE";
+            // Rooted, because this section also renders on /about, where a
+            // bare `#royal-dream` would resolve against that page instead.
+            const href = resolveHref(brand.link);
+            /**
+             * Brands point at their own storefronts, on other domains. The
+             * footer has always opened those in a new tab with `noopener`; the
+             * cards did not, so the same destination behaved differently
+             * depending on which half of the page you clicked. "Kunjungi" is
+             * also identical on all six cards, which is unusable from a screen
+             * reader's link list — hence the brand name in the label.
+             */
+            const external = href.startsWith("http");
             return (
               <RevealItem key={brand.id}>
                 <article className="glass seam lift group relative flex h-full flex-col overflow-hidden rounded-[1.5rem] p-5 sm:p-6">
@@ -97,12 +110,19 @@ export function BrandsSection({ brands }: { brands: Brand[] }) {
                     >
                       {isLive ? (
                         <TrackedLink
-                          href={brand.link}
+                          href={href}
+                          {...(external
+                            ? {
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                                "aria-label": `Kunjungi ${brand.name} — dibuka di tab baru`,
+                              }
+                            : { "aria-label": `Kunjungi ${brand.name}` })}
                           event="brand_click"
                           params={{
                             item_id: brand.id,
                             item_name: brand.name,
-                            destination: brand.link,
+                            destination: href,
                           }}
                         >
                           Kunjungi

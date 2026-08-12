@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 
 import { getSettings } from "@/lib/queries";
 import { siteVerification } from "@/lib/analytics/config";
+import { resolveSocialImage } from "@/lib/seo";
 import "./globals.css";
 
 /**
@@ -104,6 +105,22 @@ export async function generateMetadata(): Promise<Metadata> {
      * and every content page sets a canonical. See lib/seo.ts.
      */
     category: "games",
+    /**
+     * Both cards resolve through `resolveSocialImage` rather than reading
+     * `settings.ogImageUrl` directly.
+     *
+     * Reading the setting raw put the *stored original* in the tag — a 2.1 MB
+     * PNG. Every other route on the site already goes through this helper and
+     * ships a 1200px, ~165 KB JPEG; the root was the one place that did not, so
+     * `twitter:image` on the homepage was thirteen times heavier than the same
+     * card everywhere else. WhatsApp, which is this store's main sharing
+     * channel, silently drops the thumbnail on images that large.
+     *
+     * The helper also guarantees an image exists at all — it falls back to the
+     * generated 1200×630 route — which matters because Next replaces the whole
+     * `openGraph` object when a child route declares its own. A card with no
+     * picture is what a missing fallback actually looks like.
+     */
     openGraph: {
       type: "website",
       locale: "id_ID",
@@ -111,13 +128,13 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: settings.siteName,
       title,
       description,
-      ...(settings.ogImageUrl ? { images: [{ url: settings.ogImageUrl }] } : {}),
+      images: [{ url: resolveSocialImage(settings), alt: settings.siteName }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      ...(settings.ogImageUrl ? { images: [settings.ogImageUrl] } : {}),
+      images: [resolveSocialImage(settings)],
     },
     robots: {
       index: true,

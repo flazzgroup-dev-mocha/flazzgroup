@@ -29,6 +29,26 @@ export default async function SiteLayout({
 
   return (
     <>
+      {/*
+        The skip link lives here so that every public page has one.
+
+        It was written into the homepage only, which meant the other eleven
+        indexable pages — the blog archive, every article, and the four static
+        pages — had no way to jump past a navbar full of links. All of them
+        already render `<main id="main">`, so the target existed everywhere; the
+        control did not.
+
+        It has to be the first thing in the layout: a bypass link is only useful
+        if it is the first element the keyboard reaches, and this renders ahead
+        of `children` in document order for every route below.
+      */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-100 focus:rounded-full focus:bg-gold focus:px-5 focus:py-3 focus:text-sm focus:font-bold focus:text-ink"
+      >
+        Lewati ke konten utama
+      </a>
+
       {children}
       {chat ? <SupportChat config={chat} /> : null}
 

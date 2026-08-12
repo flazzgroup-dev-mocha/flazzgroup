@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Cookie } from "lucide-react";
 
 import { useConsent } from "@/lib/analytics/consent";
@@ -42,9 +43,16 @@ export function ConsentBanner() {
         </span>
 
         <p className="min-w-0 flex-1 text-sm leading-relaxed text-mist">
-          Kami memakai cookie untuk melihat halaman mana yang paling membantu.
-          Tidak ada data pribadi yang dijual.{" "}
-          <span className="text-fog">Kamu bisa menolak tanpa kehilangan fitur apa pun.</span>
+          Kami memakai cookie untuk melihat halaman mana yang paling membantu.{" "}
+          <span className="text-fog">Kamu bisa menerima / menolak tanpa kehilangan fitur apa pun.</span>{" "}
+          {/* Consent has to be informed to be consent, and "informed" means the
+              details are one click away rather than summarised in a sentence. */}
+          <Link
+            href="/privacy-policy"
+            className="font-semibold text-gold underline decoration-gold/35 underline-offset-[3px] transition-colors hover:decoration-gold"
+          >
+            Selengkapnya
+          </Link>
         </p>
 
         {/* Equal visual weight — the choice must not be steered. */}

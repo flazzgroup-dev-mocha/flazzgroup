@@ -4,11 +4,12 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 import { getSettings } from "@/lib/queries";
-import { RSS_ALTERNATE } from "@/lib/seo";
+import { RSS_ALTERNATE, resolveSocialImage } from "@/lib/seo";
 import { buildBlogPath, parseBlogParams, requestedBlogPath } from "@/lib/blog/params";
-import { buildNavLinks, primaryTargetId } from "@/lib/site-nav";
+import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav";
 import {
   getCategories,
+  getLatestPosts,
   listPosts,
   searchPosts,
   type PostCard as PostCardData,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PostCard } from "@/components/blog/PostCard";
+import { ArchiveSchema } from "@/components/blog/ArchiveSchema";
 import { SearchTracker } from "@/components/analytics/SearchTracker";
 import { TrackedLink } from "@/components/analytics/TrackedLink";
 import { getBrands, getCommunityLinks } from "@/lib/queries";
@@ -38,10 +40,12 @@ export async function generateMetadata({
 }: {
   searchParams: SearchParams;
 }): Promise<Metadata> {
-  const [settings, categories, params] = await Promise.all([
+  const [settings, categories, params, latest] = await Promise.all([
     getSettings(),
     getCategories(),
     searchParams,
+    // Cached and already read by the page body — this costs no extra query.
+    getLatestPosts(1),
   ]);
 
   const { page, query, categorySlug } = parseBlogParams(params);
@@ -54,9 +58,23 @@ export async function generateMetadata({
     : "Blog — Panduan & Tips Top Up Game";
   const title = page > 1 ? `${base} — Halaman ${page}` : base;
 
+  /**
+   * A category with no description of its own still gets a description of its
+   * own.
+   *
+   * Falling straight through to the archive's generic sentence meant
+   * `/blog?kategori=chip-and-koin` and `/blog` shipped byte-identical
+   * `<meta name="description">` while both claimed to be canonical, indexable
+   * pages — the textbook shape of a duplicate that Google resolves by picking
+   * one and dropping the other. Naming the category makes each archive
+   * describe itself, and costs nothing when an editor later writes a real
+   * description in the admin panel, because that still wins.
+   */
   const description =
     category?.description ||
-    "Panduan top up Royal Dream, tips bermain, dan penjelasan metode pembayaran. Ditulis oleh tim yang menangani ribuan transaksi setiap bulan.";
+    (category
+      ? `Kumpulan artikel ${category.name} dari FLAZZ GROUP: panduan top up Royal Dream, tips bermain, dan penjelasan metode pembayaran.`
+      : "Panduan top up Royal Dream, tips bermain, dan penjelasan metode pembayaran. Ditulis oleh tim yang menangani ribuan transaksi setiap bulan.");
 
   const path = buildBlogPath(page, category ? category.slug : "", "");
 
@@ -72,6 +90,22 @@ export async function generateMetadata({
     ? category._count.posts
     : categories.reduce((total, item) => total + item._count.posts, 0);
 
+  /**
+   * The archive's social card.
+   *
+   * Declaring `openGraph` here replaces the root's object outright rather than
+   * merging into it, so leaving the image out did not inherit the site card —
+   * it removed it. `/blog` and every category archive were shipping `og:title`
+   * and `og:description` with no `og:image` at all, which is why a link to the
+   * blog previewed as a bare line of text on WhatsApp and Telegram. The article
+   * page already had this right; the archive did not.
+   *
+   * The newest post's featured image is used when there is one — it is the
+   * picture a reader sees at the top of the archive — falling back to the
+   * site-wide card.
+   */
+  const image = resolveSocialImage(settings, latest[0]?.featuredImage);
+
   return {
     title,
     description,
@@ -81,8 +115,11 @@ export async function generateMetadata({
       title: `${title} | ${settings.siteName}`,
       description,
       url: `${settings.siteUrl.replace(/\/$/, "")}${path}`,
+      siteName: settings.siteName,
+      locale: "id_ID",
+      images: [{ url: image, alt: title }],
     },
-    twitter: { card: "summary_large_image", title, description },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
     /**
      * Search results are thin and unbounded, and an empty archive has nothing
      * to rank. `follow` stays on in both cases so the links out are still
@@ -234,14 +271,46 @@ export default async function BlogIndexPage({
   const navLinks = buildNavLinks(settings);
   const activeCategory = categories.find((c) => c.slug === categorySlug);
 
+  /**
+   * Structured data is emitted for the real archive only. A search result and
+   * an empty archive both carry `noindex` (see generateMetadata), and
+   * describing a page to a crawler that has been asked not to index it is
+   * noise — it also risks an ItemList of search hits being read as the site's
+   * own collection.
+   */
+  const describable = !query && posts.length > 0;
+
   return (
     <>
+      {describable ? (
+        <ArchiveSchema
+          settings={settings}
+          posts={posts}
+          path={buildBlogPath(page, categorySlug, "")}
+          title={activeCategory ? activeCategory.name : "Blog FLAZZ GROUP"}
+          // Kept in step with the `<meta name="description">` built in
+          // generateMetadata — structured data that contradicts the metadata on
+          // the same page is worse than structured data that is absent.
+          description={
+            activeCategory?.description ||
+            (activeCategory
+              ? `Kumpulan artikel ${activeCategory.name} dari FLAZZ GROUP: panduan top up Royal Dream, tips bermain, dan penjelasan metode pembayaran.`
+              : "Panduan top up Royal Dream, tips bermain, dan penjelasan metode pembayaran. Ditulis oleh tim yang menangani ribuan transaksi setiap bulan.")
+          }
+          category={
+            activeCategory
+              ? { name: activeCategory.name, slug: activeCategory.slug }
+              : undefined
+          }
+        />
+      ) : null}
+
       <Navbar
         siteName={settings.siteName}
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={navLinks}
+        links={buildHeaderLinks(settings)}
         searchTargetId={primaryTargetId(settings)}
       />
 

@@ -194,6 +194,47 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+
+      /**
+       * Nothing behind the admin gate may be held in a shared cache.
+       *
+       * This is aimed squarely at the Cloudflare layer in front of this app.
+       * `/admin/login` is a statically prerendered route, so Next labels it
+       * `Cache-Control: s-maxage=31536000` — a year, in the directive that
+       * shared caches obey. That is harmless while Cloudflare sticks to its
+       * default of not caching `text/html`, and stops being harmless the moment
+       * anyone adds a "Cache Everything" rule to speed the site up: a login
+       * screen, and every authenticated page reached through it, becomes an
+       * edge-cached object.
+       *
+       * `private` is the directive that matters — it tells a CDN the response
+       * belongs to one user and must not be stored — and `no-store` says not to
+       * write it down at all. Both are stated rather than one, because
+       * intermediaries honour them inconsistently.
+       *
+       * The API is included for the same reason. Its handlers are dynamic and
+       * Next already marks them uncacheable, but a mutation response sitting in
+       * an edge cache is the kind of failure that is invisible until it is
+       * catastrophic, and an explicit header costs nothing.
+       */
+      {
+        source: "/admin/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+          // Belt and braces: some CDNs key off this rather than Cache-Control.
+          { key: "CDN-Cache-Control", value: "private, no-store" },
+          // An admin screen has no business in a search index.
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+          { key: "CDN-Cache-Control", value: "private, no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
 };

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
-import { getHomepageData } from "@/lib/queries";
-import { RSS_ALTERNATE } from "@/lib/seo";
+import { getHomepageData, getSettings } from "@/lib/queries";
+import { RSS_ALTERNATE, resolveSocialImage } from "@/lib/seo";
 import { getLatestPosts } from "@/lib/blog/queries";
-import { buildNavLinks, primaryTargetId } from "@/lib/site-nav";
+import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
@@ -26,12 +26,48 @@ import { StructuredData } from "@/components/common/StructuredData";
  * emitted into <head> rather than streamed into the body, which is what
  * link-preview scrapers and auditing tools read.
  *
- * Title, description and social cards come from the root layout, which reads
- * them out of the settings row. Only the canonical is declared here.
+ * Title and description come from the root layout, which reads them out of the
+ * settings row. The canonical and the social card are declared here.
  */
-export const metadata: Metadata = {
-  alternates: { canonical: "/", ...RSS_ALTERNATE },
-};
+
+/**
+ * The homepage's own card, stated rather than inherited.
+ *
+ * Inheriting it did not work, and the reason is a Next rule that is easy to
+ * miss: a file-based `opengraph-image.tsx` **outranks** whatever
+ * `openGraph.images` the metadata sets for the same route segment. So the root
+ * layout's image was overruled here by `app/opengraph-image.tsx` — but only for
+ * Open Graph. `twitter:image` has no file convention competing with it, so it
+ * kept the layout's value.
+ *
+ * The homepage therefore advertised two different pictures: a generated
+ * 1200×630 card to Facebook and WhatsApp, and the brand PNG to X. Declaring
+ * both here from one `resolveSocialImage` call is what makes the two agree.
+ *
+ * Everything the root sets on `openGraph` is repeated, because a route that
+ * declares the object replaces the parent's outright — omitting `siteName` or
+ * `locale` deletes them rather than inheriting them.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  const title = settings.seoTitle || settings.siteName;
+  const description = settings.seoDescription || settings.siteDescription;
+  const image = resolveSocialImage(settings);
+
+  return {
+    alternates: { canonical: "/", ...RSS_ALTERNATE },
+    openGraph: {
+      type: "website",
+      locale: "id_ID",
+      url: settings.siteUrl,
+      siteName: settings.siteName,
+      title,
+      description,
+      images: [{ url: image, alt: settings.siteName }],
+    },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
+  };
+}
 
 /**
  * Tag invalidation is the fast path; this is the floor underneath it.
@@ -76,19 +112,14 @@ export default async function HomePage() {
         faqs={settings.showFaq ? faqs : []}
       />
 
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-100 focus:rounded-full focus:bg-gold focus:px-5 focus:py-3 focus:text-sm focus:font-bold focus:text-ink"
-      >
-        Lewati ke konten utama
-      </a>
-
+      {/* The skip link now lives in the (site) layout, which puts one on every
+          public page instead of only this one. */}
       <Navbar
         siteName={settings.siteName}
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={navLinks}
+        links={buildHeaderLinks(settings)}
         searchTargetId={primaryTargetId(settings)}
       />
 

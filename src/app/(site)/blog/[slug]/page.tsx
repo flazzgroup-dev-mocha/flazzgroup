@@ -6,15 +6,14 @@ import { ArrowLeft, ArrowRight, Clock3, Tag as TagIcon } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { getBrands, getCommunityLinks, getSettings } from "@/lib/queries";
-import { buildNavLinks, primaryTargetId } from "@/lib/site-nav";
+import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav";
 import {
   getAdjacentPosts,
   getPostBySlug,
   getRelatedPosts,
 } from "@/lib/blog/queries";
 import { withHeadingAnchors } from "@/lib/blog/content";
-import { RSS_ALTERNATE } from "@/lib/seo";
-import { isVector } from "@/lib/media/url";
+import { RSS_ALTERNATE, resolveSocialImage } from "@/lib/seo";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -69,26 +68,12 @@ export async function generateMetadata({
   const description = post.seoDescription || post.excerpt;
 
   /**
-   * The social card, which is never an SVG and is never absent.
-   *
-   * Facebook, Twitter/X, WhatsApp and Telegram all refuse `image/svg+xml` for
-   * link previews, so an article whose featured image is a vector was shipping
-   * an `og:image` that every one of them silently dropped — the link previewed
-   * as a bare title on the channel this store actually sells through.
-   *
-   * Leaving it `undefined` is not the answer either: the root layout's
-   * `opengraph-image` is *not* inherited once a route declares its own
-   * `openGraph` object, so dropping the tag produced articles with no card at
-   * all. The generated 1200×630 card is named explicitly as the last resort.
+   * The social card, which is never an SVG, never absent, and never the 2 MB
+   * original — the three rules now live in `resolveSocialImage`, because the
+   * archive and the static pages need exactly the same ones and each had been
+   * getting a different subset right. See lib/seo.ts.
    */
-  const absolute = (path: string) =>
-    path.startsWith("http") ? path : `${base}${path}`;
-
-  const raster = [post.featuredImage, settings.ogImageUrl].find(
-    (candidate): candidate is string => Boolean(candidate) && !isVector(candidate!)
-  );
-
-  const image = raster ? absolute(raster) : `${base}/opengraph-image`;
+  const image = resolveSocialImage(settings, post.featuredImage);
 
   return {
     title,
@@ -163,7 +148,7 @@ export default async function ArticlePage({
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={navLinks}
+        links={buildHeaderLinks(settings)}
         searchTargetId={primaryTargetId(settings)}
       />
 
