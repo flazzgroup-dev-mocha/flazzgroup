@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { getSettings } from "@/lib/queries";
 import { getAllPublishedPosts, getCategories } from "@/lib/blog/queries";
-import { cloudinaryUrl, isVector } from "@/lib/media/url";
+import { cloudinaryUrl, isVector, socialImageUrl } from "@/lib/media/url";
 import { STATIC_PAGES, staticPageDate } from "@/lib/static-pages";
 
 /**
@@ -63,7 +63,38 @@ import { STATIC_PAGES, staticPageDate } from "@/lib/static-pages";
  */
 const SITEMAP_IMAGE_WIDTH = 1200;
 
-function indexableImage(url: string | null | undefined) {
+/**
+ * How the page in question delivers this image.
+ *
+ * The rule above — quote the URL the page actually references — needs one
+ * transform per page *type*, not one for the whole sitemap, because the two
+ * page types reference their image through different helpers.
+ *
+ *   article   `next/image` renders the featured image into a `srcset`, so the
+ *             URL on the page carries `f_auto`. `w_1200` is one of the widths
+ *             in `next.config.ts`'s `deviceSizes`, so this emits an entry that
+ *             is in that `srcset` byte for byte. Verified against the rendered
+ *             HTML.
+ *
+ *   homepage  The site card is never rendered as an `<img>`; its only
+ *             appearance anywhere is `og:image` / `twitter:image`, and those go
+ *             through `socialImageUrl`, which asks for `f_jpg` rather than
+ *             `f_auto` — see the reasoning in lib/media/url.ts.
+ *
+ * Using the article transform for both is what this replaces, and it undid the
+ * fix the block above describes: the homepage advertised
+ * `f_auto,q_auto,w_1200,c_limit/…` while the page itself only ever contained
+ * `f_jpg,q_auto,w_1200,c_limit/…`. One character of difference, and the
+ * nominated URL appeared nowhere in the document it was nominated for.
+ */
+type Deliver = (url: string) => string;
+
+const asRendered: Deliver = (url) =>
+  cloudinaryUrl(url, { width: SITEMAP_IMAGE_WIDTH });
+
+const asSocialCard: Deliver = (url) => socialImageUrl(url, SITEMAP_IMAGE_WIDTH);
+
+function indexableImage(url: string | null | undefined, deliver: Deliver) {
   if (!url) return undefined;
   const trimmed = url.trim();
   if (!trimmed || isVector(trimmed)) return undefined;
@@ -71,7 +102,7 @@ function indexableImage(url: string | null | undefined) {
   // parsers and rejected by others; an image sitemap wants absolute URLs.
   if (!trimmed.startsWith("http")) return undefined;
 
-  return [cloudinaryUrl(trimmed, { width: SITEMAP_IMAGE_WIDTH })];
+  return [deliver(trimmed)];
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -83,6 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const base = settings.siteUrl.replace(/\/$/, "");
   const newestPost = posts[0]?.publishedAt ?? settings.updatedAt;
+  const homeImage = indexableImage(settings.ogImageUrl, asSocialCard);
 
   return [
     {
@@ -90,9 +122,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: settings.updatedAt,
       changeFrequency: "daily",
       priority: 1,
-      ...(indexableImage(settings.ogImageUrl)
-        ? { images: indexableImage(settings.ogImageUrl) }
-        : {}),
+      ...(homeImage ? { images: homeImage } : {}),
     },
     {
       url: `${base}/blog`,
@@ -117,7 +147,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.5,
       })),
     ...posts.map((post) => {
-      const images = indexableImage(post.featuredImage);
+      const images = indexableImage(post.featuredImage, asRendered);
       return {
         url: `${base}/blog/${post.slug}`,
         lastModified: post.updatedAt,

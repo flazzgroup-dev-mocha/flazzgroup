@@ -9,6 +9,7 @@ import {
   cloudinaryMessage,
   isCloudinaryNotFound,
 } from "../src/lib/media/errors";
+import { sanitizeSvg } from "../src/lib/media/svg";
 
 /**
  * End-to-end check of the Cloudinary integration.
@@ -83,7 +84,67 @@ function upload(data: Buffer, publicId: string) {
   });
 }
 
+/**
+ * The SVG sanitiser, checked against the payloads it exists to stop.
+ *
+ * Runs before the credential gate on purpose: it is pure string work with no
+ * network and no account, so there is no reason for it to be skipped on a
+ * machine that has not been given Cloudinary keys. It is also the one part of
+ * the media pipeline whose failure is silent — a vector that keeps its script
+ * uploads, stores and serves exactly like one that does not.
+ *
+ * Every entry below leaked through the previous sanitiser. `f` is a fragment
+ * that must not survive; the second list is the mirror image, constructs that
+ * are ordinary in real artwork and must not be destroyed.
+ */
+function checkSvgSanitiser() {
+  console.log("— svg sanitiser —");
+
+  const open = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">`;
+  const close = "</svg>";
+  const wrap = (body: string) => `${open}${body}${close}`;
+
+  const hostile: [string, string, string][] = [
+    ["paired <script>", wrap("<script>alert(1)</script>"), "alert(1)"],
+    ["self-closing <script href>", wrap('<script href="data:text/javascript,alert(1)"/>'), "data:text/javascript"],
+    ["unterminated <script>", `${open}<script>alert(1)`, "<script"],
+    ["<script xlink:href>", wrap('<script xlink:href="data:text/javascript,alert(1)"/>'), "data:text/javascript"],
+    ["onload attribute", wrap('<rect onload="alert(1)" width="1" height="1"/>'), "onload"],
+    ["unquoted onmouseover", wrap("<rect onmouseover=alert(1) width='1'/>"), "onmouseover"],
+    ["href=javascript:", wrap('<a href="javascript:alert(1)"><rect width="1"/></a>'), "javascript:"],
+    ["named entity in scheme", wrap('<a href="java&#115;cript:alert(1)"><rect width="1"/></a>'), "cript:alert"],
+    ["hex entity in scheme", wrap('<a href="&#x6a;avascript:alert(1)"><rect width="1"/></a>'), "avascript:alert"],
+    ["newline inside scheme", wrap('<a href="java\nscript:alert(1)"><rect width="1"/></a>'), "script:alert"],
+    ["SMIL animate of href", wrap('<a><animate attributeName="href" to="javascript:alert(1)"/></a>'), "<animate"],
+    ["SMIL set of onload", wrap('<set attributeName="onload" to="alert(1)"/>'), "<set"],
+    ["<foreignObject> html", wrap('<foreignObject><body onload="alert(1)"/></foreignObject>'), "foreignobject"],
+    ["<iframe>", wrap('<iframe src="https://example.invalid"/>'), "<iframe"],
+    ["<use> of a data: svg", wrap('<use href="data:image/svg+xml;base64,PHN2Zz4="/>'), "data:image/svg"],
+    ["DOCTYPE external entity", `<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>${wrap("<text>&xxe;</text>")}`, "entity"],
+    ["nested entity expansion", `<!DOCTYPE svg [<!ENTITY a "aa"><!ENTITY b "&a;&a;">]>${wrap("")}`, "<!doctype"],
+  ];
+
+  for (const [label, source, forbidden] of hostile) {
+    const out = sanitizeSvg(source).toString("utf8").toLowerCase();
+    check(`strips ${label}`, !out.includes(forbidden.toLowerCase()), out.slice(0, 160));
+  }
+
+  const benign: [string, string, string][] = [
+    ["icon sprite fragment", wrap('<use href="#icon"/>'), 'href="#icon"'],
+    ["outbound https link", wrap('<a href="https://example.com"><rect width="1"/></a>'), "https://example.com"],
+    ["embedded raster", wrap('<image href="data:image/png;base64,iVBORw0KGgo="/>'), "data:image/png"],
+    ["opacity animation", wrap('<rect width="1"><animate attributeName="opacity" to="0"/></rect>'), "<animate"],
+  ];
+
+  for (const [label, source, expected] of benign) {
+    const out = sanitizeSvg(source).toString("utf8");
+    check(`keeps ${label}`, out.includes(expected), out.slice(0, 160));
+  }
+}
+
 async function main() {
+  checkSvgSanitiser();
+
   if (!CLOUD || !KEY || !SECRET) {
     console.error(
       "\nCloudinary is not configured.\n\n" +

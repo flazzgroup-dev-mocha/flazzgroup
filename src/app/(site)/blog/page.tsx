@@ -124,11 +124,25 @@ export async function generateMetadata({
      * Search results are thin and unbounded, and an empty archive has nothing
      * to rank. `follow` stays on in both cases so the links out are still
      * crawled.
+     *
+     * The indexable branch spells out `googleBot` as well, and it has to.
+     * Metadata merges per top-level field, so declaring `robots` here replaces
+     * the root layout's object outright rather than merging into it — which
+     * silently dropped `max-image-preview: large` from `/blog` and from every
+     * category archive while the homepage, the static pages and the article
+     * pages all kept it. That directive is what allows a full-size image
+     * thumbnail beside a result, and it is a precondition for Google Discover;
+     * without it the archives were opted down to a 'standard' preview for no
+     * reason anyone had chosen.
      */
     robots:
       query || publishedCount === 0
         ? { index: false, follow: true }
-        : { index: true, follow: true },
+        : {
+            index: true,
+            follow: true,
+            googleBot: { index: true, follow: true, "max-image-preview": "large" },
+          },
   };
 }
 

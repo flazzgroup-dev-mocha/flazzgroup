@@ -228,20 +228,20 @@ ssh you@your-vps
 # 2 — go to the project
 cd /path/to/flazz-group
 
-# 3 — get the new code
-git pull
-
-# 4 — install any new dependencies
-npm ci
-
-# 5 — STOP THE APP FIRST. This step is the one people skip.
+# 3 — STOP THE APP FIRST. This step is the one people skip.
 pm2 stop flazz-group          # or: sudo systemctl stop flazz-group
 
-# 6 — build, with nothing serving
-npm run build
+# 4 — get the new code
+git pull
 
-# 7 — apply database migrations
+# 5 — install any new dependencies
+npm ci
+
+# 6 — apply database migrations, BEFORE the build (see below)
 npm run db:migrate
+
+# 7 — build, with nothing serving
+npm run build
 
 # 8 — start again
 pm2 start flazz-group         # or: sudo systemctl start flazz-group
@@ -249,6 +249,39 @@ pm2 start flazz-group         # or: sudo systemctl start flazz-group
 # 9 — check it came up
 curl -sI http://127.0.0.1:3000/ | head -1        # expect: HTTP/1.1 200 OK
 ```
+
+Or as one line, which is what you will actually paste:
+
+```bash
+pm2 stop flazz-group && git pull && npm ci && npm run db:migrate && npm run build && pm2 start flazz-group
+```
+
+**Why migrations come before the build, not after.** `next build` is not a pure
+compile step on this project — it queries Neon, to prerender every published
+article and to read the settings row for titles and metadata. Those queries are
+issued by the Prisma client that `npm run build` has just regenerated from the
+*new* `schema.prisma`. So if the schema adds a column and the migration has not
+run yet, the build asks the database for a column that does not exist and fails
+outright, with a Postgres error that says nothing about deploy ordering.
+
+Migrating first means the database is always at or ahead of the code that is
+about to query it, which is the direction that works. It is also why a failed
+`db:migrate` should stop the deploy: there is no point building against a schema
+you could not apply.
+
+**Why the stop comes before `git pull` and `npm ci`, not after.** Only the build
+genuinely corrupts a running deploy (§ C4), but `npm ci` deletes `node_modules`
+and recreates it — doing that underneath a live process gives you a site throwing
+module-not-found errors for however long the install takes. Stopping first costs
+the same downtime and removes the whole window.
+
+**If the build fails, the site stays down.** That is the trade-off of stopping
+first, and it is the right one: a failed build with the old process still running
+is how you end up serving a mix of old and new. Either fix the error and re-run,
+or roll back (§ C3). To avoid the surprise entirely, run `npx tsc --noEmit` and
+`npm run lint` on your laptop before pushing — a build that passes locally
+almost always passes on the VPS. The exception is the database being
+unreachable, because the build queries Neon to prerender articles.
 
 ### C2. Verify the deploy from outside
 
@@ -300,7 +333,7 @@ is reading from it. Depending on timing you get stale pages, a mix of old and
 new, or genuinely broken HTML served with no styling at all — and nothing errors,
 so you find out from a customer.
 
-**Rule: stop, build, migrate, start. Never build against a running server.**
+**Rule: stop, migrate, build, start. Never build against a running server.**
 
 If a deploy ever looks half-applied, the reliable cure is a clean rebuild:
 
@@ -310,6 +343,44 @@ rm -rf .next
 npm run build
 pm2 start flazz-group
 ```
+
+#### The other half of `.next`: the data cache survives deploys
+
+`.next` holds two different things, and only one of them is rebuilt.
+
+`.next/server` is compiled output and prerendered HTML — a build replaces it.
+`.next/cache` is the **data cache**, where every `unstable_cache` query result is
+stored, and a build deliberately preserves it: that is what makes rebuilds fast.
+
+The consequence is that a cached query result can outlive any number of deploys.
+Until this audit those entries had no expiry to speak of — Next stores an
+unbounded `unstable_cache` entry with a one-year lifetime — and they are only
+dropped early when an admin save calls `revalidateTag` on the process holding
+them. A database change made any other way is invisible to that.
+
+This was not hypothetical. Building this project from a clean checkout produced a
+homepage and footer advertising two brands that had been deleted from the
+database months earlier, linking out to their sites and naming them in the
+Organization schema. `lib/queries.ts` now caps every one of those entries at an
+hour, so the worst case is an hour rather than a year.
+
+You still do not have to think about this day to day — saving in `/admin` purges
+instantly, as it always did. It matters in exactly two situations:
+
+- **You changed content outside the panel** — restored a Neon backup, ran SQL by
+  hand, edited a row in Neon's console. Either wait an hour, or force it:
+  ```bash
+  pm2 stop flazz-group && rm -rf .next && npm run build && pm2 start flazz-group
+  ```
+- **The site shows content you know is gone.** Same cure. Check the database
+  first so you are not chasing a cache that is telling the truth.
+
+One more trap, and it is the reason the "reproduced during the audit" paragraph
+above exists twice over: `next dev` and `next build` share `.next/cache`. Running
+a build on a machine where a dev server is live lets the dev server's stale
+entries end up baked into the prerendered HTML. On the VPS this is the same rule
+as before — stop the app first — but it is worth knowing if you ever build on a
+laptop that has `npm run dev` open in another terminal.
 
 ### C5. Process manager
 
@@ -398,6 +469,43 @@ The app now sends `private, no-store` and `CDN-Cache-Control: private, no-store`
 on both, which Cloudflare honours — but a "Cache Everything" rule set to
 *override* origin headers would ignore that and put a login page in the edge
 cache. Do not do that.
+
+#### Optional: caching public HTML at the edge
+
+Measured during this audit: every HTML response comes back `cf-cache-status:
+DYNAMIC`, including the homepage. The origin is sending `Cache-Control:
+s-maxage=300, stale-while-revalidate=31535700` and Cloudflare is ignoring it,
+because **Cloudflare does not cache `text/html` unless you tell it to** — no
+amount of `s-maxage` changes that on its own.
+
+Nothing is broken. Next's own ISR cache means those requests are answered from
+disk without touching Neon, so the origin is cheap. But every visitor still pays
+a round trip to Singapore instead of to their nearest Cloudflare edge, and that
+round trip is the largest single component of TTFB on this site.
+
+If you want it, the safe shape is a **Cache Rule**, not "Cache Everything":
+
+> Cloudflare → **Caching → Cache Rules → Create rule**
+>
+> **If** — `URI Path` does *not* start with `/admin` **and** `URI Path` does not
+> start with `/api`
+>
+> **Then** — Eligible for cache; **Edge TTL:** *Use cache-control header if
+> present, otherwise 5 minutes*; **Browser TTL:** *Respect origin*
+
+Two things make this safe rather than reckless, and both are already true of the
+app: the admin and API paths are excluded by the rule *and* send `no-store`
+independently, and nothing on a public page varies per visitor — there is no
+logged-in state outside `/admin`.
+
+Two things to know before switching it on. **Content edits stop being instant at
+the edge:** saving in `/admin` purges Next's cache, not Cloudflare's, so a change
+takes up to the edge TTL to appear unless you purge (§ D4). And **`/blog` will
+not be cached anyway** — it sends `private, no-store` because it reads `?q=`,
+`?kategori=` and `?page=`, so it is dynamic by construction.
+
+Leave the default if that trade is not worth it. `DYNAMIC` is a working
+configuration, not a fault.
 
 ### D4. Purging the cache
 
@@ -526,6 +634,32 @@ them.
 **Before deleting anything from Cloudinary, search the Media Library for the
 filename and check nothing in the panel still uses it.** A deleted image that is
 still referenced becomes a broken picture on a live page.
+
+### E4b. Files nothing points at any more
+
+```bash
+npm run media:orphans              # list them; changes nothing
+npm run media:orphans -- --delete  # remove them, after you have read the list
+```
+
+An orphan is a file this app uploaded whose row nothing references any more —
+an upload that succeeded at Cloudinary and then failed to record itself, or an
+image whose owning row was deleted before the reference check covered every
+place an image can be used.
+
+Listing is the default and deleting needs the flag on purpose. Media is the one
+thing in this system with no undo: the database has Neon's branch history and
+the code has git, but a destroyed Cloudinary asset is gone. **Read the list
+before you pass `--delete`** — a name you recognise is a reason to stop and find
+out why nothing references it, not a reason to proceed.
+
+Files added through the Cloudinary dashboard rather than the admin panel have no
+row here. They are never listed and never at risk.
+
+This audit found ten: 8×8 and 10×10 pixel probes named `h-b.svg`, `h-k.jpg`,
+`adv-probe-lied.png` and similar, all uploaded on 2 August 2026 while the upload
+validation was being tested. About 1 KB in total. They were left in place —
+deleting from a production account is your call, not an audit's.
 
 ### E5. Test the whole pipeline
 
@@ -664,6 +798,80 @@ Both are generated; there is no file to edit.
   and `/api`, and points at the sitemap
 
 A new article appears in the sitemap within about five minutes of publishing.
+
+#### The image in the sitemap is the one on the page
+
+Worth knowing before you "tidy" anything here. Each article entry carries one
+`<image:loc>`, and it is not the stored original — it is the exact delivery URL
+the page renders, transformation string and all. For an article that is the
+`f_auto,q_auto,w_1200,c_limit` variant, which is byte-for-byte one of the entries
+in that page's `srcset`; for the homepage it is the `f_jpg,…` variant, because the
+site card only ever appears as `og:image` and that is the form it takes there.
+
+The point of the exercise is that Google is being told "this image belongs to
+this page" about a URL that genuinely appears in that page's HTML. Nominating the
+bare original instead — which is what happened before, and separately for the
+homepage until this audit — asks Google to associate a page with an image it
+cannot find in it, and hands crawlers a 2 MB PNG with no format negotiation.
+
+#### Why the served robots.txt is longer than the one this app generates
+
+`curl https://www.flazzgroup.com/robots.txt` returns considerably more than the
+four lines above, and nothing in this repository produces the extra part.
+
+**Cloudflare injects it.** The managed block — the `Content-Signal` header
+comment, then `User-agent: *` with `Content-Signal: search=yes,ai-train=no,use=reference`,
+then a list of AI crawlers each given `Disallow: /` — is added at the edge by
+Cloudflare's **AI Crawl Control → Manage robots.txt** feature. The final document
+is Cloudflare's block, then this app's, concatenated:
+
+```
+# BEGIN Cloudflare Managed content
+User-agent: *
+Content-Signal: search=yes,ai-train=no,use=reference
+Allow: /
+User-agent: GPTBot
+Disallow: /
+… Amazonbot, Applebot-Extended, Bytespider, CCBot, ClaudeBot,
+  CloudflareBrowserRenderingCrawler, Google-Extended, meta-externalagent …
+# END Cloudflare Managed Content
+
+User-Agent: *          ← everything from here down is app/robots.ts
+Allow: /
+Disallow: /admin
+Disallow: /api
+
+Sitemap: https://www.flazzgroup.com/sitemap.xml
+```
+
+**This does not harm search.** Two things are worth being precise about, because
+the file looks alarming at a glance:
+
+- The two `User-agent: *` groups are **merged**, not fought over. RFC 9309 and
+  Google's parser both combine groups that name the same user agent, so the
+  effective policy is "allow everything except `/admin` and `/api`". Duplication
+  is untidy rather than dangerous.
+- **Not one search crawler is blocked.** Googlebot, Bingbot, DuckDuckBot,
+  Applebot, Yandex and Baidu are all unrestricted. The blocked list is entirely
+  AI training and inference agents. `Google-Extended` in particular governs
+  Gemini grounding and training only — Google documents that it has no effect on
+  Search ranking or inclusion — and `Applebot-Extended` is Apple Intelligence
+  training, not the `Applebot` that feeds Siri and Spotlight.
+
+What the current setting *does* cost is AI-assistant visibility: ChatGPT
+(`GPTBot`), Claude (`ClaudeBot`), Perplexity and others are told not to read the
+site, so the blog will not be cited in their answers. That is a business
+decision, not a bug — leave it if you want the content kept out of AI training,
+change it if being quoted by assistants is worth more to you than that.
+
+**Change it at the right layer.** Editing `src/app/robots.ts` cannot remove the
+Cloudflare block; the edge will keep prepending it. To change that half:
+
+> Cloudflare dashboard → your domain → **AI Crawl Control** → **Manage robots.txt**
+> — turn the managed file off entirely, or edit which crawlers it lists.
+
+Then re-check with `curl https://www.flazzgroup.com/robots.txt` and confirm the
+`Sitemap:` line is still the last thing in the file.
 
 ---
 
@@ -818,6 +1026,66 @@ Events instead of your real reporting. Remove it when finished.
 | **Conversions counted twice** | GTM *and* GA4 both configured, or Ads "Count" set to "Every" | GA4 Realtime; Ads → Conversions | Remove one of GTM/GA4. Set Ads count to "One" ([I3](#i3-checking-for-duplicate-conversions)) |
 
 ---
+
+## K Cheat code for update
+
+Step 1 — On your laptop: commit and push
+
+cd "c:/Users/whosl/Downloads/flazz group baru"
+git add -A
+git commit -m "Add static pages, fix image delivery in sitemap/schema/social cards"
+git push origin main
+Pushing does not update the live site. It only backs the code up to GitHub. The site changes in step 2.
+
+Step 2 — On the VPS: deploy
+
+ssh you@your-vps
+cd /path/to/flazz-group
+
+git pull
+npm ci
+
+pm2 stop flazz-group        # ← STOP FIRST. This is the step that matters.
+
+npm run build
+npm run db:migrate          # no-op this time, but harmless and keeps the habit
+
+pm2 start flazz-group
+Do not skip the pm2 stop. I hit this during the audit: building while the app runs makes the build report success while the site keeps serving the old version — or worse, serves pages with a stylesheet URL that no longer exists, so everything renders unstyled for up to an hour.
+
+If anything looks half-applied afterwards: pm2 stop → rm -rf .next → npm run build → pm2 start.
+
+Step 3 — Add the one new setting
+This is separate from the code and easy to forget:
+
+
+nano .env
+# add:  TRUSTED_PROXY="cloudflare"
+pm2 restart flazz-group
+And confirm your origin is firewalled — from a machine that is not the VPS:
+
+
+curl -sI --max-time 5 http://<your-vps-ip>/
+It must hang or be refused. If it returns HTML, your VPS is reachable directly and cloudflare becomes a lie an attacker can exploit. Fix the firewall before setting this.
+
+Step 4 — Verify
+
+curl -sI https://www.flazzgroup.com/ | head -1                      # 200
+curl -sI https://www.flazzgroup.com/about | head -1                 # 200 (new page)
+curl -s https://www.flazzgroup.com/sitemap.xml | grep -c "f_auto"   # expect 5
+curl -s https://www.flazzgroup.com/ | grep -o '<meta name="twitter:image"[^>]*>'
+That last one should show f_jpg,q_auto,w_1200,c_limit — not a bare /upload/v…/ URL. Then purge the Cloudflare cache (Caching → Purge Everything), and resubmit sitemap.xml in Search Console so the corrected image URLs get picked up.
+
+If it goes wrong
+
+pm2 stop flazz-group
+git log --oneline -5
+git checkout <previous-good-sha>
+npm ci && rm -rf .next && npm run build
+pm2 start flazz-group
+Safe to roll back freely here — no migration ran, so there's no database state to unwind.
+
+Full version with troubleshooting is in TUTOR.md § C. Want me to run the commit and push for you? The SSH part you'll need to do yourself since I can't reach the VPS.
 
 ## The five things that actually matter
 

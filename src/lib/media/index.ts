@@ -8,6 +8,7 @@ import {
   uploadImage,
 } from "./cloudinary";
 import { isCloudinaryUrl } from "./url";
+import { findOrphanedAssets, isStillReferenced } from "./references";
 import {
   MEDIA_FOLDERS,
   type MediaFolder,
@@ -25,13 +26,15 @@ import {
 export { UploadError, isCloudinaryConfigured };
 export * from "./folders";
 export { isCloudinaryUrl, cloudinaryUrl, isVector } from "./url";
+export { findOrphanedAssets, isStillReferenced };
 
 /**
  * Stores the file and records what was stored.
  *
  * The row is written after the upload succeeds, so a failed upload cannot leave
  * a record pointing at nothing. The reverse — an upload with no row — is
- * recoverable: `findOrphanedAssets` lists anything nothing references.
+ * recoverable: `findOrphanedAssets` lists anything nothing references, and
+ * `npm run media:orphans` is the command that prints it.
  */
 export async function saveUpload(
   file: File,
@@ -145,36 +148,4 @@ export function publicIdFromUrl(url: string) {
     .join("/");
 
   return path.replace(/\.[a-z0-9]+$/i, "") || null;
-}
-
-/**
- * Whether any content row still points at this URL.
- *
- * The same file can legitimately be reused — one logo across several payment
- * methods, one banner reused as a blog cover — and deleting one of those rows
- * must not break the others.
- */
-async function isStillReferenced(url: string) {
-  const [banners, products, brands, popular, payments, posts, authors, settings] =
-    await Promise.all([
-      prisma.heroBanner.count({
-        where: { OR: [{ imageUrl: url }, { mobileImageUrl: url }] },
-      }),
-      prisma.product.count({ where: { imageUrl: url } }),
-      prisma.brand.count({ where: { logoUrl: url } }),
-      prisma.popularService.count({ where: { imageUrl: url } }),
-      prisma.paymentMethod.count({ where: { logoUrl: url } }),
-      prisma.blogPost.count({ where: { featuredImage: url } }),
-      prisma.author.count({ where: { avatarUrl: url } }),
-      prisma.websiteSettings.count({
-        where: {
-          OR: [{ logoUrl: url }, { faviconUrl: url }, { ogImageUrl: url }],
-        },
-      }),
-    ]);
-
-  return (
-    banners + products + brands + popular + payments + posts + authors + settings >
-    0
-  );
 }

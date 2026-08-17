@@ -12,7 +12,8 @@
     "db:seed": "node scripts/db-cli.mjs tsx prisma/seed.ts",
     "db:studio": "node scripts/db-cli.mjs prisma studio",
     "db:reset": "node scripts/db-cli.mjs prisma migrate reset --force",
-    "media:check": "node scripts/db-cli.mjs tsx scripts/media-smoke-test.ts"
+    "media:check": "node scripts/db-cli.mjs tsx scripts/media-smoke-test.ts",
+    "media:orphans": "node scripts/db-cli.mjs tsx scripts/media-orphans.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

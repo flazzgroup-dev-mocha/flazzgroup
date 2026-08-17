@@ -5,10 +5,12 @@ import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 
 import { slugify } from "@/lib/blog/slug";
 import {
+  UploadError,
   cloudinaryHttpCode,
   cloudinaryMessage,
   isCloudinaryNotFound,
 } from "./errors";
+import { sanitizeSvg } from "./svg";
 import {
   SNIFFED_TYPES,
   extensionMatches,
@@ -32,16 +34,12 @@ import {
  * once rather than per form.
  */
 
-/** Carries the HTTP status the API route should answer with. */
-export class UploadError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status = 415) {
-    super(message);
-    this.name = "UploadError";
-    this.status = status;
-  }
-}
+/**
+ * Re-exported so every existing import site keeps working. The class itself now
+ * lives in ./errors, which the SVG sanitiser can reach without dragging in the
+ * Cloudinary SDK — see the note there.
+ */
+export { UploadError };
 
 let configured = false;
 
@@ -260,28 +258,6 @@ function detectType(filename: string, data: Buffer): AcceptedMime {
   }
 
   return detected;
-}
-
-/**
- * Strips scripts, event handlers and external references from an SVG.
- *
- * Cloudinary stores an SVG verbatim, so unlike a raster — which is re-encoded
- * and therefore laundered — a vector arrives at the browser exactly as
- * uploaded. It is sanitised here and served under a sandboxed CSP.
- */
-function sanitizeSvg(source: string) {
-  const cleaned = source
-    .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, "")
-    .replace(/<\s*foreignObject[\s\S]*?<\s*\/\s*foreignObject\s*>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/(href|xlink:href)\s*=\s*("|')\s*javascript:[^"']*\2/gi, "")
-    .replace(/<\s*!\s*ENTITY[\s\S]*?>/gi, "");
-
-  if (!/<svg[\s>]/i.test(cleaned)) {
-    throw new UploadError("That file is not a valid SVG.");
-  }
-
-  return Buffer.from(cleaned, "utf8");
 }
 
 function upload(data: Buffer, publicId: string): Promise<UploadApiResponse> {

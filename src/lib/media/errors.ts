@@ -16,6 +16,24 @@
  * an ordinary "this filename is free" 404 turns into an unhandled failure.
  */
 
+/**
+ * Carries the HTTP status the API route should answer with.
+ *
+ * Lives here rather than beside the uploader for the reason in the header
+ * above: the SVG sanitiser throws it too, and that module is pure string work
+ * with no business importing the Cloudinary SDK. Putting the class in the one
+ * file both can reach is what keeps `svg.ts` testable without credentials.
+ */
+export class UploadError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 415) {
+    super(message);
+    this.name = "UploadError";
+    this.status = status;
+  }
+}
+
 type CloudinaryRejection = {
   http_code?: unknown;
   message?: unknown;
