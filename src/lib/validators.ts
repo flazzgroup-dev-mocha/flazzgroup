@@ -121,6 +121,14 @@ const optionalImage = z
   .union([imageSchema, z.null(), z.undefined()])
   .transform((v) => (v ? v : null));
 
+/** Lowercase, hyphenated, URL-safe. Slugs are permanent public identifiers. */
+const slugSchema = clean(120)
+  .refine((v) => v.length > 0, "A slug is required.")
+  .refine(
+    (v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
+    "Use lowercase letters, numbers and hyphens only."
+  );
+
 const hexColor = clean(9).refine(
   (v) => /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v),
   "Enter a hex colour such as #2E7CF6."
@@ -253,6 +261,11 @@ export type ChatSettingsInput = z.input<typeof chatSettingsSchema>;
 
 // -------------------------------------------------------------- settings
 
+/** What the homepage's main slot renders. Mirrors the Prisma enum. */
+export const HOMEPAGE_MODES = ["GAME", "TOP_UP"] as const;
+
+export type HomepageModeValue = (typeof HOMEPAGE_MODES)[number];
+
 export const settingsSchema = z.object({
   siteName: required("Website name", 120),
   siteDescription: optional(400),
@@ -281,7 +294,20 @@ export const settingsSchema = z.object({
   tiktokUrl: linkSchema,
   youtubeUrl: linkSchema,
 
+  /**
+   * One value, two states. The homepage asks this and nothing else about which
+   * of its two main sections to render, so "both at once" is not a state the
+   * form, the API or the database can be talked into.
+   */
+  homepageMode: z.enum(HOMEPAGE_MODES).default("GAME"),
+
   showHero: boolish,
+  /**
+   * `showGames` is deliberately absent: it is the switch `homepageMode`
+   * replaced. Leaving it here would let a save write a column nothing reads,
+   * and — worse — leave two places in the panel that both look like they
+   * decide whether the picker appears.
+   */
   showPopular: boolish,
   showProducts: boolish,
   showBrands: boolish,
@@ -464,6 +490,52 @@ export const faqSchema = z.object({
   order,
 });
 
+// ----------------------------------------------------------------- games
+
+/**
+ * A game, and the page that belongs to it.
+ *
+ * There is no destination field any more, and its absence is the security
+ * story as much as the routing one: the column it replaces accepted a
+ * free-text URL, so "where does this card go" was request data. A card's route
+ * is now derived from its slug, which is already constrained to
+ * `[a-z0-9-]` — there is nothing left for a caller to inject.
+ *
+ * `topUpEnabled` is validated here as an ordinary flag. The rule that only one
+ * game may hold it cannot live in a schema, because it is a question about the
+ * other rows; the API route answers it inside the same transaction as the
+ * write — see app/api/games/route.ts.
+ */
+export const gameSchema = z.object({
+  name: required("Game name", 80),
+  slug: slugSchema,
+  imageUrl: requiredImage,
+  description: optional(200),
+  /**
+   * Paragraphs, so `multiline` rather than `clean` — the latter strips
+
+   * along with the rest of the C0 range, which would flatten the page's only
+   * long-form copy into one block.
+   */
+  about: multiline(8000).default(""),
+  /**
+   * A category slug or nothing. Not checked against the `blog_categories`
+   * table: the page renders this link only when the category is found *and*
+   * has published posts, so a slug that names nothing costs a reader nothing.
+   * Validating shape here still stops a URL or a path being stored in a field
+   * that is interpolated into one.
+   */
+  articleCategorySlug: clean(120)
+    .default("")
+    .refine(
+      (v) => v === "" || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
+      "Use the category slug exactly as it appears in Blog Taxonomy, e.g. panduan-top-up."
+    ),
+  topUpEnabled: boolish,
+  isActive: boolish,
+  order,
+});
+
 // --------------------------------------------------------------- reorder
 
 export const reorderSchema = z.object({
@@ -487,14 +559,6 @@ export function toFieldErrors(error: z.ZodError): FieldErrors {
 }
 
 // ------------------------------------------------------------------ blog
-
-/** Lowercase, hyphenated, URL-safe. Slugs are permanent public identifiers. */
-const slugSchema = clean(120)
-  .refine((v) => v.length > 0, "A slug is required.")
-  .refine(
-    (v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
-    "Use lowercase letters, numbers and hyphens only."
-  );
 
 export const authorSchema = z.object({
   name: required("Name", 80),

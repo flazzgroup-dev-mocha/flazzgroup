@@ -74,3 +74,26 @@ export function socialImageUrl(src: string, width = 1200) {
     (match) => `${match}f_jpg,q_auto,w_${width},c_limit/`
   );
 }
+
+/**
+ * An absolute delivery URL for structured data.
+ *
+ * Two things a crawler needs that a stored URL does not always give it.
+ *
+ * Absolute, because JSON-LD is read with no page to resolve a relative path
+ * against — uploads already arrive as full Cloudinary URLs, anything served
+ * from /public does not.
+ *
+ * And *delivered*, not original. Without a transform Cloudinary ignores the
+ * crawler's `Accept` header and returns the full-size PNG; for the product
+ * tiles that is a 2 MB file standing in for a thumbnail, and it is a URL that
+ * appears nowhere in the rendered markup. Naming a width that `next/image`
+ * also emits means the schema quotes a URL the page actually references.
+ *
+ * Vectors pass through untouched: `f_auto` would rasterise them, and a width
+ * cap is meaningless for a format with no pixels.
+ */
+export function schemaImageUrl(base: string, src: string, width?: number) {
+  const absolute = src.startsWith("http") ? src : `${base}${src}`;
+  return isVector(absolute) ? absolute : cloudinaryUrl(absolute, { width });
+}

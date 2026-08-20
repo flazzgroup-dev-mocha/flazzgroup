@@ -11,9 +11,10 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getCommunityLinks, getSettings } from "@/lib/queries";
+import { getCommunityLinks, getSettings, getTopUpGame } from "@/lib/queries";
 import { staticPageMetadata } from "@/lib/seo";
-import { primaryTargetId, resolveHref } from "@/lib/site-nav";
+import { resolveHref } from "@/lib/site-nav";
+import { topUpHref } from "@/lib/games";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHero } from "@/components/common/PageHero";
@@ -74,9 +75,10 @@ const ROLES: Record<
 };
 
 export default async function ContactPage() {
-  const [settings, community] = await Promise.all([
+  const [settings, community, topUpGame] = await Promise.all([
     getSettings(),
     getCommunityLinks(),
+    getTopUpGame(),
   ]);
 
   const whatsappUrl = settings.whatsappUrl.trim();
@@ -130,7 +132,11 @@ export default async function ContactPage() {
     { label: "YouTube", href: settings.youtubeUrl, Icon: YoutubeIcon },
   ].filter((social) => social.href.trim().length > 0);
 
-  const catalogHref = `/#${primaryTargetId(settings)}`;
+  // These buttons say "see the price list" and "start a top up", so they open
+  // the top-up page itself rather than the homepage game picker — and they
+  // follow whichever game owns the catalogue, so moving it in the panel moves
+  // them too.
+  const catalogHref = topUpHref(topUpGame);
 
   return (
     <PageShell>

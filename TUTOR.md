@@ -10,13 +10,25 @@ visitor
   ↓
 Cloudflare        DNS, TLS, CDN, cache
   ↓
-VPS               a Linux box you rent
+VPS               a Linux box you rent, administered through aaPanel
+  ↓
+Apache            reverse proxy on :80/:443 → 127.0.0.1:3000
+  ↓
+PM2               keeps the app running and restarts it on crash and on boot
   ↓
 Next.js 15.5.21   this application, started with `npm start`
   ↓
 Neon PostgreSQL   the database (Singapore region)
 Cloudinary        every image
 ```
+
+| Thing | Value |
+| --- | --- |
+| Project directory | `/www/wwwroot/flazzgroup.com` |
+| PM2 process | `flazzgroup` |
+| App listens on | `127.0.0.1:3000` — never exposed directly |
+| Panel | aaPanel |
+| Web server | Apache, reverse proxying to the app |
 
 **This is not Vercel.** If a guide on the internet tells you to click something
 in a Vercel dashboard, it is not describing your site.
@@ -226,10 +238,10 @@ Run these in order. The order is not cosmetic — see [C4](#c4--why-the-order-ma
 ssh you@your-vps
 
 # 2 — go to the project
-cd /path/to/flazz-group
+cd /www/wwwroot/flazzgroup.com
 
 # 3 — STOP THE APP FIRST. This step is the one people skip.
-pm2 stop flazz-group          # or: sudo systemctl stop flazz-group
+pm2 stop flazzgroup          # or: sudo systemctl stop flazzgroup
 
 # 4 — get the new code
 git pull
@@ -244,17 +256,25 @@ npm run db:migrate
 npm run build
 
 # 8 — start again
-pm2 start flazz-group         # or: sudo systemctl start flazz-group
+pm2 start flazzgroup          # or: sudo systemctl start flazzgroup
 
-# 9 — check it came up
+# 9 — persist the process list, so a VPS reboot brings the app back
+pm2 save
+
+# 10 — check it came up
 curl -sI http://127.0.0.1:3000/ | head -1        # expect: HTTP/1.1 200 OK
 ```
 
 Or as one line, which is what you will actually paste:
 
 ```bash
-pm2 stop flazz-group && git pull && npm ci && npm run db:migrate && npm run build && pm2 start flazz-group
+pm2 stop flazzgroup && git pull && npm ci && npm run db:migrate && npm run build && pm2 start flazzgroup && pm2 save
 ```
+
+`pm2 save` only needs to be right once — it writes the current process list to
+disk so `pm2 resurrect` (which `pm2 startup` wires into boot) brings the app
+back after a reboot. Running it on every deploy costs nothing and removes the
+one failure that is invisible until the machine restarts months later.
 
 **Why migrations come before the build, not after.** `next build` is not a pure
 compile step on this project — it queries Neon, to prerender every published
@@ -286,11 +306,13 @@ unreachable, because the build queries Neon to prerender articles.
 ### C2. Verify the deploy from outside
 
 ```bash
-curl -sI https://www.flazzgroup.com/               | head -1   # 200
-curl -s  https://www.flazzgroup.com/robots.txt                 # sitemap line present
-curl -s  https://www.flazzgroup.com/sitemap.xml | head -20     # URLs, all www
-curl -sI https://www.flazzgroup.com/admin/login    | head -1   # 200
-curl -sI https://www.flazzgroup.com/blog           | head -1   # 200
+curl -sI https://www.flazzgroup.com/                    | head -1   # 200
+curl -s  https://www.flazzgroup.com/robots.txt                      # sitemap line present
+curl -s  https://www.flazzgroup.com/sitemap.xml      | head -20     # URLs, all www
+curl -sI https://www.flazzgroup.com/admin/login         | head -1   # 200
+curl -sI https://www.flazzgroup.com/blog                | head -1   # 200
+curl -sI https://www.flazzgroup.com/top-up/royal-dream  | head -1   # 200 — the catalogue
+curl -sI https://www.flazzgroup.com/top-up/mobile-legends | head -1 # 200 — an information page
 ```
 
 Then in a browser: open the homepage, open one article, sign in to `/admin`.
@@ -298,20 +320,20 @@ Then in a browser: open the homepage, open one article, sign in to `/admin`.
 Logs:
 
 ```bash
-pm2 logs flazz-group --lines 100
+pm2 logs flazzgroup --lines 100
 # or
-sudo journalctl -u flazz-group -n 100 --no-pager
+sudo journalctl -u flazzgroup -n 100 --no-pager
 ```
 
 ### C3. If a deploy goes wrong
 
 ```bash
-pm2 stop flazz-group
+pm2 stop flazzgroup
 git log --oneline -5                # find the previous good commit
 git checkout <previous-good-sha>
 npm ci
 npm run build
-pm2 start flazz-group
+pm2 start flazzgroup
 ```
 
 Code rolls back cleanly. **Database migrations do not** — if the bad deploy
@@ -338,10 +360,10 @@ so you find out from a customer.
 If a deploy ever looks half-applied, the reliable cure is a clean rebuild:
 
 ```bash
-pm2 stop flazz-group
+pm2 stop flazzgroup
 rm -rf .next
 npm run build
-pm2 start flazz-group
+pm2 start flazzgroup
 ```
 
 #### The other half of `.next`: the data cache survives deploys
@@ -370,7 +392,7 @@ instantly, as it always did. It matters in exactly two situations:
 - **You changed content outside the panel** — restored a Neon backup, ran SQL by
   hand, edited a row in Neon's console. Either wait an hour, or force it:
   ```bash
-  pm2 stop flazz-group && rm -rf .next && npm run build && pm2 start flazz-group
+  pm2 stop flazzgroup && rm -rf .next && npm run build && pm2 start flazzgroup
   ```
 - **The site shows content you know is gone.** Same cure. Check the database
   first so you are not chasing a cache that is telling the truth.
@@ -386,7 +408,7 @@ laptop that has `npm run dev` open in another terminal.
 
 Run `npm start` under PM2 or systemd so it restarts on crash and on boot.
 
-**Use exactly one instance** — `pm2 start npm --name flazz-group -- start`, not
+**Use exactly one instance** — `pm2 start npm --name flazzgroup -- start`, not
 cluster mode, not `-i max`. Two things in this app live in the memory of one
 process:
 
@@ -406,18 +428,49 @@ a limitation.
 They live in `.env` in the project directory. After changing any of them:
 
 ```bash
-pm2 restart flazz-group
+pm2 restart flazzgroup
 ```
 
 A change to a `NEXT_PUBLIC_*` variable additionally needs a **rebuild**, because
 those are compiled into the browser bundle:
 
 ```bash
-pm2 stop flazz-group && npm run build && pm2 start flazz-group
+pm2 stop flazzgroup && npm run build && pm2 start flazzgroup
 ```
 
 Confirm `TRUSTED_PROXY="cloudflare"` is set. See [D5](#d5--lock-the-origin-to-cloudflare) —
 that value is only true once the origin is firewalled.
+
+### C7. Apache and aaPanel
+
+Apache terminates the connection and passes everything to the app. Next.js is
+never exposed on a public port; it listens on `127.0.0.1:3000` and only Apache
+talks to it.
+
+The site's vhost, managed in **aaPanel → Website → flazzgroup.com → Config**,
+needs these two lines and little else:
+
+```apache
+ProxyPass        /  http://127.0.0.1:3000/
+ProxyPassReverse /  http://127.0.0.1:3000/
+```
+
+Points worth knowing:
+
+- **Do not add a static file handler for `/_next/`.** Next serves its own
+  assets with the cache headers and immutable hashes it expects; a rule that
+  intercepts them serves stale bundles after a deploy.
+- **`mod_proxy` and `mod_proxy_http` must be enabled**, or Apache answers the
+  proxy directives with a configuration error rather than a page.
+- **Apache does not need restarting for a deploy.** Only the PM2 process does.
+  Reloading Apache is a separate action for a separate reason (a vhost or
+  certificate change), and doing it out of habit only adds a way to break a
+  deploy that was working.
+- **A 502 means the app is down, not that Apache is wrong.** Check
+  `pm2 logs flazzgroup` first, and `curl -sI http://127.0.0.1:3000/` from the
+  VPS to see whether the app is answering at all.
+- **TLS is Cloudflare's on the outside and the origin certificate's on the
+  inside.** See [D2](#d2--ssltls).
 
 ---
 
@@ -711,14 +764,15 @@ Use a long, unique password. This account can edit everything the public sees.
 | **Blog** | Articles — write, edit, schedule, publish |
 | **Blog taxonomy** | Categories, tags, authors |
 | **Banners** | Homepage hero slider |
+| **Games** | The game catalogue. One row per game, one page per row. See F6 |
 | **Brands** | Partner brand logos and links |
-| **Products** | Coin packages and prices |
+| **Products** | The top-up packages and prices, shown on the page of whichever game has **Top up enabled** |
 | **Popular / Features / Hero stats** | Homepage sections |
 | **Payments** | Accepted payment method logos |
 | **FAQ** | Homepage FAQ (this is also structured data) |
 | **Community** | Telegram/WhatsApp group links |
 | **Chat** | The floating support widget |
-| **Settings** | Site name, URL, SEO defaults, social image, analytics IDs — **SUPER_ADMIN** |
+| **Settings** | Homepage mode, site name, URL, SEO defaults, social image, analytics IDs — **SUPER_ADMIN** |
 | **Users** | Admin accounts — **SUPER_ADMIN** |
 
 Most list screens support drag-and-drop reordering, and the order is what
@@ -733,6 +787,314 @@ Open Graph URLs and the structured data. Changing it to the non-`www` version,
 or to `http://`, re-points all of them at a domain that then redirects — and
 Google treats "canonical points somewhere that redirects" as a reason to
 de-index the page.
+
+### F5. Homepage mode
+
+The homepage has **one main section**, and you choose which one it is.
+
+**Settings → Homepage mode** (SUPER_ADMIN):
+
+| Mode | The homepage opens on |
+| --- | --- |
+| **Game** | The game picker. A visitor chooses a game, then goes to that game's page |
+| **Top Up** | The top-up catalogue — the nominal grid — for whichever game has **Top up enabled** in Games |
+
+They are two options of one setting, not two switches. You cannot turn both on,
+and you cannot turn both off. That is deliberate: the earlier version of this
+was a pair of switches, and the live site had reached the state that proves why
+— the picker switched off, the catalogue already moved to its own page, and a
+homepage with nothing in the middle.
+
+**In Game mode** the homepage shows no price, no nominal and no currency
+anywhere. Everything transactional is one click away, on the page belonging to
+the game the visitor picked. This is the mode to run if you are advertising a
+general "top up game" service.
+
+**In Top Up mode** the homepage is the nominal grid, exactly as the game's own
+page renders it. Use it when the site is effectively a single-game store and you
+want visitors to land straight on the amounts.
+
+> **Fallback.** If you select Top Up while no game has **Top up enabled**, or
+> while there are no active products, the homepage shows the picker instead of
+> an empty section. It will not render a blank middle.
+
+The supporting sections below it — Popular, Brands, Features, Payment,
+Community, FAQ — each keep their own switch under **Settings → Homepage
+sections** and are unaffected by the mode.
+
+### F6. Game management
+
+Every game is a row in **Admin → Games**, and every row gets a page:
+
+```
+/top-up/<slug>
+```
+
+That route is decided by the application, not by anything you type. Adding a
+game is a row and an image — never a deploy.
+
+```
+visitor  →  /  (pick a game)  →  /top-up/<slug>
+                                  ├─ Top up enabled → the nominal grid, prices, buy buttons
+                                  └─ otherwise      → an information page that says
+                                                      ordering is not open yet
+```
+
+#### F6a. Add a game
+
+**Admin → Games → Add game.**
+
+| Field | What to put in it |
+| --- | --- |
+| **Game artwork** | **Square** key art — 512 × 512 or larger. The card crops to 1:1, so anything taller than it is wide loses its top and bottom. Required |
+| **Game name** | What players call it — "Mobile Legends", not "MLBB Diamonds" |
+| **Slug** | Fills in from the name as you type. This *is* the URL, so it must be unique and it should not be changed after you have advertised the page |
+| **Short description** | One line, on the card. The card has no room for a paragraph |
+| **About this game** | The body of the game's page. Blank line between paragraphs. **See F6c — this field decides whether the page gets indexed** |
+| **Blog category slug** | Optional. Links the game's page to your articles. See F6d |
+| **Top up enabled** | Whether this game's page takes orders. See F6b |
+| **Show on homepage** | Off takes the card out of the picker and keeps the row |
+
+Under the slug the form prints the page the game will get. If that line does not
+say what you expected, the URL will not either.
+
+Save, and the homepage shows it. There is no publish step and no cache to clear.
+
+#### F6b. Top up enabled — the one that matters
+
+**On:** the game's page shows the **Products** catalogue — the nominals, the
+prices, the badges, the buy buttons — and the site treats this game as the one
+it can take orders for. The menu entry, the footer link, the sitemap entry and
+every "start a top up" button on the site point at it.
+
+**Off:** the game's page is an information page. It says, at the top, that
+ordering for this game is not open at FLAZZ GROUP, and it carries no nominal, no
+price, no order form and no button that behaves like a checkout.
+
+> **Only one game can have this on.** The Products list is a single site-wide
+> catalogue with no game column, so a second game switched on would show the
+> first game's amounts under its own name — a page stating a price for something
+> it does not sell. Switching it on for one game therefore switches it off for
+> every other, in one save. Nothing is lost: switch it back and the previous
+> game returns to being an information page.
+
+This is how you move the shop to another game later. Fill Products with the new
+game's amounts, then turn **Top up enabled** on for that game. No deploy, no
+code change, and nothing on the site keeps naming the old one.
+
+#### F6c. "About this game", and why it is not optional
+
+A page with only a name, a picture and a "not available yet" notice is a **thin
+doorway page**. Google's word, not ours, and a site with a shelf of them gets
+its good pages judged by them.
+
+So the field decides the page's fate:
+
+| About this game | The page | Sitemap |
+| --- | --- | --- |
+| Filled in | `index, follow` | listed |
+| Empty | `noindex, follow` | not listed |
+
+The page answers either way — a URL that has been in an ad must never start
+404ing. It simply is not recommended to search engines until it is worth
+recommending.
+
+Write something genuinely useful: what the game is, what its currency is called,
+what a player normally needs a top up for, how FLAZZ GROUP handles it once the
+service opens. A few honest paragraphs is enough.
+
+#### F6d. Blog category slug
+
+Optional. Enter the **category slug** exactly as it appears in Admin → Blog
+Taxonomy — `panduan-top-up`, not a URL.
+
+The game's page then shows the latest articles in that category, plus a link to
+the full archive. **If the category does not exist, or has no published posts,
+nothing is rendered.** That is a fix, not a limitation: the old version linked
+to the category unconditionally, and three of the four live cards led to an
+empty archive for a category nobody had created.
+
+#### F6e. The image
+
+The same uploader as every other screen, and the same Cloudinary account. Files
+land in `flazzgroup/game`.
+
+Two things follow, both covered in section E: **name the file before you upload
+it** (`mobile-legends-flazz-group.jpg`, not `IMG_2831.jpg`), and replacing a
+picture deletes the old one from Cloudinary unless something else still points
+at it.
+
+Square, and reasonably large. The picker crops to 1:1 and the game page shows
+the same file at about 288 px, so 512 × 512 is a sensible floor.
+
+#### F6f. Order
+
+Drag the rows in the table. The order you leave them in is the order the cards
+appear in, left to right and top to bottom. The one you want people to pick goes
+first.
+
+The grid is fixed rather than reflowing: **five across on a desktop, three on a
+tablet, two on a phone**. A catalogue grows, and cards that resized every time
+you added a game would move the titles people had learned the position of.
+
+#### F6g. Hiding and deleting
+
+**Show on homepage → off** takes the card out of the picker and keeps the row,
+the image and the copy. The page keeps answering — again, a URL that has been in
+an ad must not start 404ing — but it is marked `noindex` and dropped from the
+sitemap while it is hidden.
+
+**Delete** removes the row and releases its artwork from Cloudinary, unless
+another row still uses the same file. It cannot be undone, and the page 404s
+immediately afterwards. Prefer hiding.
+
+> One exception, built in on purpose: `/top-up/royal-dream` keeps serving the
+> catalogue even if that row is renamed or deleted, because that URL has been in
+> ads and bookmarks. It falls back to whichever game has **Top up enabled**.
+
+#### F6h. Advertising the top up
+
+**Settings → Homepage sections → Advertise the top up** controls whether the
+active game's top-up page is *linked* — in the menu, the footer and the sitemap.
+The page itself always answers either way, on purpose, because an ad or a
+bookmark pointing at it must never turn into a 404 because somebody tidied up
+the navigation.
+
+#### F6i. Cache
+
+Saving a game invalidates the affected pages immediately:
+
+```
+save  →  revalidateTag("games")  →  homepage and game pages dropped  →  next visitor rebuilds them
+```
+
+No Cloudflare purge, no PM2 restart, no deploy. Cloudflare is not caching the
+HTML — see D3 — so a hard refresh is the most you should ever need, and only to
+convince yourself.
+
+If a change genuinely does not appear: check the game is **active**, check you
+are looking at the right site, then check `pm2 logs flazzgroup` for a database
+error. In that order.
+
+#### F6j. Deploying this feature to the VPS
+
+Two migrations are involved:
+
+| Migration | What it does |
+| --- | --- |
+| `20260819120000_games` | Creates the `games` table. Additive |
+| `20260820120000_homepage_mode_and_game_pages` | Adds `website_settings.homepageMode`, and `games.about`, `games.articleCategorySlug`, `games.topUpEnabled`. Backfills all four from the columns they replace. Additive |
+
+The second one **drops nothing and renames nothing**. `showGames`,
+`destinationType` and `destinationValue` keep their columns and their data, so
+the previous release still runs against this schema and a rollback loses
+nothing. They can be dropped in a later release once this one has proven itself.
+
+What the backfill does:
+
+- a game whose destination was **Royal Dream top up** becomes `topUpEnabled = true`;
+- a game whose destination was a **blog category** keeps that slug in
+  `articleCategorySlug`;
+- `homepageMode` becomes **GAME** if any game is active, otherwise **TOP_UP**.
+
+Follow **C1** as written; the migration step is already in it. In full:
+
+```bash
+# 0 — back up. Neon → Branches → create a branch from main. This is your undo.
+
+ssh user@your-vps
+cd /www/wwwroot/flazzgroup.com
+
+pm2 stop flazzgroup           # stop first, always
+git pull origin main
+npm ci
+npm run db:migrate            # prisma migrate deploy — forward only
+npm run build
+pm2 start flazzgroup          # or: pm2 reload flazzgroup
+pm2 save                      # so the process comes back after a reboot
+pm2 logs flazzgroup --lines 40
+```
+
+Verify:
+
+```bash
+npx prisma migrate status     # want: Database schema is up to date!
+curl -o /dev/null -s -w "%{http_code}\n" https://www.flazzgroup.com/
+curl -o /dev/null -s -w "%{http_code}\n" https://www.flazzgroup.com/top-up/royal-dream
+curl -o /dev/null -s -w "%{http_code}\n" https://www.flazzgroup.com/top-up/mobile-legends
+```
+
+All three should answer `200`.
+
+**Do not** run `npm run db:seed` on the VPS. Seeding fills any content table it
+finds empty, which is a far larger action than anything a deploy needs.
+
+> **This release only: delete `.next` on the first deploy.**
+>
+> The pre-production audit rewrote the text of all four published articles
+> directly in the database. Those edits went through the panel's own write path,
+> so they invalidated the cache **in the process that made them** — which was
+> not the VPS. A normal deploy preserves `.next/cache` (see
+> [C4](#the-other-half-of-next-the-data-cache-survives-deploys)), so the old
+> article text would keep being served from disk for up to an hour.
+>
+> ```bash
+> pm2 stop flazzgroup && git pull origin main && npm ci && npm run db:migrate && rm -rf .next && npm run build && pm2 start flazzgroup && pm2 save
+> ```
+>
+> This was reproduced during the audit: after rebuilding, `/blog/beli-chip-…`
+> still served "taruhan koin" until `.next/cache` was removed. One extra flag on
+> one deploy; normal deploys after this need nothing special.
+
+#### F6k. Where the "Beli" buttons actually go
+
+Each nominal on the top-up page is a row in **Admin → Products**, and each row
+has its own **Button link**. That link is the destination — today
+`https://royalxp.org/`, the official store where the User ID is entered and the
+payment is made. This website has no checkout of its own; it is a catalogue,
+and the button is the handover.
+
+To move the storefront somewhere else, change **Button link** on each product.
+There is no single site-wide field for it on purpose: the rows already hold it,
+and a second place to set the same thing is a second place for it to be wrong.
+The trade is that changing stores means editing every row — so change them in
+one sitting, and check the last one, because a row left behind silently keeps
+sending customers to the old destination.
+
+The field is validated on the server, not just in the browser. These are
+refused with a message rather than stored:
+
+| Rejected | Why |
+| --- | --- |
+| `javascript:…` | becomes code running in a visitor's browser |
+| `data:…` | same, wearing a different hat |
+| `//host`, `///host`, `/\host` | protocol-relative — a browser reads it as another site, and the "is this external" check that decides `rel="noopener noreferrer"` does not |
+| empty | a button that goes nowhere |
+
+Accepted: a full `https://…` URL, or a path on this site starting with `/`.
+Verified against the running API during the pre-production audit.
+
+#### F6l. Adding a second game, end to end
+
+Mobile Legends, as a worked example:
+
+1. **Admin → Games → Add game.** Upload square key art named
+   `mobile-legends-flazz-group.jpg`. Name `Mobile Legends`; the slug fills
+   itself in as `mobile-legends`, so the page will be
+   `/top-up/mobile-legends`.
+2. **Short description**: `Top up Diamond Mobile Legends.`
+3. **About this game**: a few real paragraphs. Without them the page is
+   `noindex` and stays out of the sitemap — see F6c.
+4. Leave **Top up enabled** off. It is an information page until you actually
+   open the service.
+5. Optional: create a `mobile-legends` category in **Blog Taxonomy**, publish an
+   article in it, and put that slug in **Blog category slug**. Until there is a
+   published article the game page simply shows no article section.
+6. Save, then drag it to where you want it in the list.
+7. Open `https://www.flazzgroup.com/top-up/mobile-legends` and read it as a
+   visitor would.
+
+No deploy, no migration, no restart.
 
 ---
 
@@ -1008,11 +1370,11 @@ Events instead of your real reporting. Remove it when finished.
 | **Neon connection failures under load** | Pool too large, or using the direct URL for the app | Neon → Monitoring → connections | `DATABASE_URL` must be the **`-pooler`** endpoint. Lower `DB_POOL_MAX` |
 | **Migration fails halfway** | Ran against the pooled endpoint, or a hand-edited migration file | `npx prisma migrate status` | Never edit applied migrations. Restore the Neon branch from [B3](#b3--safe-migration-procedure), fix the file, re-run |
 | **`prisma migrate` says "drift detected"** | Someone ran `db push` or changed the DB by hand | `npx prisma migrate status` | Do not "resolve" blindly. Work out what changed, write a real migration |
-| **Cloudinary upload fails** | Missing/wrong credentials, or file over 5 MB | `npm run media:check` | Fix the three `CLOUDINARY_*` variables, then `pm2 restart flazz-group` |
+| **Cloudinary upload fails** | Missing/wrong credentials, or file over 5 MB | `npm run media:check` | Fix the three `CLOUDINARY_*` variables, then `pm2 restart flazzgroup` |
 | **Images broken on the live site** | Asset deleted from Cloudinary, or the record points at a stale URL | Open the image URL directly | Re-upload through the panel. Never delete from Cloudinary without checking references ([E4](#e4--replacing-an-image)) |
 | **Sitemap empty or missing articles** | Articles are drafts, scheduled, or flagged noIndex | `curl -s https://www.flazzgroup.com/sitemap.xml` | Only published, past-dated, indexable articles are listed. That is correct behaviour |
 | **robots.txt shows the wrong domain** | Settings → Site URL is wrong | `curl -s https://www.flazzgroup.com/robots.txt` | Set it back to `https://www.flazzgroup.com` ([F4](#f4--the-setting-to-be-careful-with)) |
-| **500 errors on the site** | App crash, or database unreachable | `pm2 logs flazz-group --lines 100` | Read the log. Usually Neon suspended or a missing env var |
+| **500 errors on the site** | App crash, or database unreachable | `pm2 logs flazzgroup --lines 100` | Read the log. Usually Neon suspended or a missing env var |
 | **`npm run build` fails** | Type error, lint error, or DB unreachable at build time | `npx tsc --noEmit` then `npm run lint` | Fix what it names. The build reads the database to prerender articles, so `DATABASE_URL` must work |
 | **Deploy done, site unchanged** | **Built while the server was running** | Compare the page against your edit | Stop → `rm -rf .next` → build → start ([C4](#c4--why-the-order-matters)) |
 | **Site unstyled / broken CSS after deploy** | Same cause | View source, check the CSS 404s | Same fix, then purge Cloudflare |
@@ -1040,17 +1402,17 @@ Pushing does not update the live site. It only backs the code up to GitHub. The 
 Step 2 — On the VPS: deploy
 
 ssh you@your-vps
-cd /path/to/flazz-group
+cd /www/wwwroot/flazzgroup.com
 
 git pull
 npm ci
 
-pm2 stop flazz-group        # ← STOP FIRST. This is the step that matters.
+pm2 stop flazzgroup        # ← STOP FIRST. This is the step that matters.
 
 npm run build
 npm run db:migrate          # no-op this time, but harmless and keeps the habit
 
-pm2 start flazz-group
+pm2 start flazzgroup
 Do not skip the pm2 stop. I hit this during the audit: building while the app runs makes the build report success while the site keeps serving the old version — or worse, serves pages with a stylesheet URL that no longer exists, so everything renders unstyled for up to an hour.
 
 If anything looks half-applied afterwards: pm2 stop → rm -rf .next → npm run build → pm2 start.
@@ -1061,7 +1423,7 @@ This is separate from the code and easy to forget:
 
 nano .env
 # add:  TRUSTED_PROXY="cloudflare"
-pm2 restart flazz-group
+pm2 restart flazzgroup
 And confirm your origin is firewalled — from a machine that is not the VPS:
 
 
@@ -1078,11 +1440,11 @@ That last one should show f_jpg,q_auto,w_1200,c_limit — not a bare /upload/v�
 
 If it goes wrong
 
-pm2 stop flazz-group
+pm2 stop flazzgroup
 git log --oneline -5
 git checkout <previous-good-sha>
 npm ci && rm -rf .next && npm run build
-pm2 start flazz-group
+pm2 start flazzgroup
 Safe to roll back freely here — no migration ran, so there's no database state to unwind.
 
 Full version with troubleshooting is in TUTOR.md § C. Want me to run the commit and push for you? The SSH part you'll need to do yourself since I can't reach the VPS.

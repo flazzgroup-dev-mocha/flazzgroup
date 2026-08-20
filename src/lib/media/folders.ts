@@ -9,6 +9,7 @@ export const MEDIA_FOLDERS = {
   banner: "flazzgroup/banner",
   blog: "flazzgroup/blog",
   brand: "flazzgroup/brand",
+  game: "flazzgroup/game",
   payment: "flazzgroup/payment",
   logo: "flazzgroup/logo",
   favicon: "flazzgroup/favicon",

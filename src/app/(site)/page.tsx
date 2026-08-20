@@ -7,8 +7,9 @@ import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
-import { PopularSection } from "@/components/sections/PopularSection";
+import { GamesSection } from "@/components/sections/GamesSection";
 import { ProductsSection } from "@/components/sections/ProductsSection";
+import { PopularSection } from "@/components/sections/PopularSection";
 import { BrandsSection } from "@/components/sections/BrandsSection";
 import { FeaturesSection } from "@/components/sections/FeaturesSection";
 import { PaymentSection } from "@/components/sections/PaymentSection";
@@ -90,6 +91,8 @@ export default async function HomePage() {
     banners,
     bannerAspectRatio,
     heroStats,
+    games,
+    topUpGame,
     popular,
     products,
     brands,
@@ -99,16 +102,31 @@ export default async function HomePage() {
     faqs,
   } = await getHomepageData();
 
+  /**
+   * One slot, one mode.
+   *
+   * The homepage's main section is either the game picker or the top-up
+   * catalogue, never both and never neither. It used to be two independent
+   * switches, and production had reached the state that proves why that was
+   * wrong: `showGames` was off and the catalogue had already moved to its own
+   * page, so the middle of the homepage rendered nothing at all.
+   *
+   * TOP_UP falls back to the picker when no game owns the catalogue, because
+   * "show the catalogue" is not a request anything can honour when there is no
+   * game to show one for — and an empty middle is how this started.
+   */
+  const catalogueGame =
+    settings.homepageMode === "TOP_UP" && products.length > 0 ? topUpGame : null;
+
   const latestPosts = await getLatestPosts(3);
 
-  const navLinks = buildNavLinks(settings);
+  const navLinks = buildNavLinks(settings, topUpGame);
 
   return (
     <>
       <StructuredData
         settings={settings}
         brands={settings.showBrands ? brands : []}
-        products={settings.showProducts ? products : []}
         faqs={settings.showFaq ? faqs : []}
       />
 
@@ -119,7 +137,7 @@ export default async function HomePage() {
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={buildHeaderLinks(settings)}
+        links={buildHeaderLinks(settings, topUpGame)}
         searchTargetId={primaryTargetId(settings)}
       />
 
@@ -137,8 +155,32 @@ export default async function HomePage() {
             aspectRatio={bannerAspectRatio}
           />
         ) : null}
+        {catalogueGame ? (
+          /*
+            TOP_UP mode: the catalogue itself, from the same component and the
+            same rows the game page renders. `ProductsSection` carries the
+            `#royal-dream` anchor, which is why the standalone span below is
+            rendered only in the other mode — two elements with one id is an
+            invalid document and the fragment would resolve to whichever the
+            browser saw first.
+          */
+          <ProductsSection products={products} gameName={catalogueGame.name} />
+        ) : (
+          <>
+            {/*
+              Legacy anchor.
+
+              Brand rows, community links and hero slides written before the
+              game picker existed point at `#royal-dream`, which used to be the
+              coin grid on this page. Those rows are production data and cannot
+              be rewritten from here, so the fragment keeps resolving — to the
+              picker, which is now the way into the same top-up.
+            */}
+            <span id="royal-dream" aria-hidden className="block scroll-mt-28" />
+            <GamesSection games={games} />
+          </>
+        )}
         {settings.showPopular ? <PopularSection services={popular} /> : null}
-        {settings.showProducts ? <ProductsSection products={products} /> : null}
         {settings.showBrands ? <BrandsSection brands={brands} /> : null}
         {settings.showFeatures ? <FeaturesSection features={features} /> : null}
         {settings.showPayment ? <PaymentSection methods={payments} /> : null}

@@ -20,11 +20,19 @@ import {
  * policy — refunds, warranties, governing law, a legal entity — the text says
  * what actually happens (report it to customer service, it is handled case by
  * case) rather than inventing an obligation nobody agreed to.
+ *
+ * Everything here was checked against the code before it was written. The site
+ * has no visitor accounts (there is no such model), stores no orders (there is
+ * no such table), and runs no checkout: every product row's button links to
+ * the official FLAZZ GROUP store, which is where the User ID and the payment
+ * are collected. The sections below say exactly that, because a terms page
+ * that describes an on-site checkout this site does not have is a promise
+ * nobody can keep.
  */
 export const revalidate = 86400;
 
 const DESCRIPTION =
-  "Terms & Conditions FLAZZ GROUP: ketentuan penggunaan website, alur pemesanan top up, tanggung jawab data transaksi, pembayaran, dan batasan tanggung jawab.";
+  "Terms & Conditions FLAZZ GROUP: ketentuan penggunaan website, katalog game, alur pemesanan top up, tanggung jawab data transaksi, pembayaran, pesanan gagal, dan batasan tanggung jawab.";
 
 /**
  * The date shown to readers is the same one the sitemap reports as `lastmod`.
@@ -67,15 +75,24 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          Website ini menampilkan informasi layanan top up Royal Dream, daftar
-          harga, brand yang berada di bawah FLAZZ GROUP, serta kanal resmi untuk
-          menghubungi kami. Website ini ditujukan untuk penggunaan pribadi dan
-          non-komersial, kecuali disepakati lain dengan kami.
+          Website FLAZZ GROUP adalah website layanan dan informasi top up game.
+          Isinya mencakup katalog game yang kami bahas, halaman informasi untuk
+          masing-masing game, daftar nominal dan harga untuk game yang layanan
+          top up-nya sudah kami buka, brand yang berada di bawah FLAZZ GROUP,
+          serta kanal resmi untuk menghubungi kami.
         </p>
         <p>
-          Isi halaman — termasuk harga, ketersediaan produk, dan promo — dapat
-          berubah sewaktu-waktu. Informasi yang berlaku adalah informasi yang
-          dikonfirmasi melalui kanal resmi pada saat pesanan diproses.
+          Website ini bukan penyelenggara permainan, bukan platform taruhan, dan
+          tidak menyediakan permainan apa pun untuk dimainkan di dalamnya. Yang
+          kami layani adalah pengisian saldo, koin, atau item dalam game milik
+          penerbit masing-masing, untuk akun game yang kamu miliki sendiri.
+        </p>
+        <p>
+          Website ini ditujukan untuk penggunaan pribadi dan non-komersial,
+          kecuali disepakati lain dengan kami. Isi halaman — termasuk harga,
+          ketersediaan produk, dan promo — dapat berubah sewaktu-waktu.
+          Informasi yang berlaku adalah informasi yang dikonfirmasi melalui
+          kanal resmi pada saat pesanan diproses.
         </p>
       </>
     ),
@@ -105,17 +122,27 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          Website ini berfungsi sebagai etalase informasi. Pemesanan diselesaikan
-          melalui kanal resmi FLAZZ GROUP: toko brand yang tertaut dari halaman
-          produk, atau customer service di WhatsApp dan Telegram yang tercantum
-          pada <Link href="/contact">halaman kontak</Link>.
+          Website ini berfungsi sebagai etalase dan sumber informasi.{" "}
+          <strong>
+            Tidak ada proses checkout, formulir pemesanan, maupun pembayaran
+            yang berjalan di website ini.
+          </strong>{" "}
+          Halaman nominal menampilkan pilihan dan harga; tombol pada setiap
+          pilihan membawa kamu ke kanal resmi FLAZZ GROUP — toko brand yang
+          tertaut dari halaman tersebut, atau customer service di WhatsApp dan
+          Telegram yang tercantum pada{" "}
+          <Link href="/contact">halaman kontak</Link>. Pemesanan diselesaikan di
+          sana.
         </p>
         <p>Alur umumnya:</p>
         <ul>
-          <li>kamu memilih nominal top up yang diinginkan;</li>
+          <li>kamu memilih game, lalu nominal top up yang diinginkan;</li>
           <li>
-            kamu menyampaikan data yang dibutuhkan, termasuk User ID atau
-            identitas akun tujuan;
+            kamu melanjutkan ke kanal resmi yang tertaut dari halaman tersebut;
+          </li>
+          <li>
+            di kanal tersebut kamu menyampaikan data yang dibutuhkan, termasuk
+            User ID atau identitas akun tujuan;
           </li>
           <li>kamu menyelesaikan pembayaran sesuai instruksi yang diberikan;</li>
           <li>
@@ -125,7 +152,10 @@ const SECTIONS: LegalSection[] = [
         </ul>
         <p>
           Waktu pemrosesan dapat berbeda-beda tergantung antrean, metode
-          pembayaran, dan kondisi sistem pihak ketiga yang terlibat.
+          pembayaran, dan kondisi sistem pihak ketiga yang terlibat. Harga yang
+          tercantum di website ini adalah harga yang berlaku saat halaman
+          diperbarui; harga final adalah yang dikonfirmasi di kanal resmi pada
+          saat pemesanan.
         </p>
       </>
     ),
@@ -151,6 +181,77 @@ const SECTIONS: LegalSection[] = [
         <p>
           Setiap laporan kendala akan kami tinjau berdasarkan bukti transaksi
           yang tersedia, dan hasil peninjauan disampaikan melalui kanal resmi.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "game-belum-tersedia",
+    title: "Game yang layanannya belum tersedia",
+    body: (
+      <>
+        <p>
+          Website ini memuat halaman informasi untuk game yang layanan top
+          up-nya <em>belum</em> kami buka. Halaman seperti itu menyatakannya
+          secara terbuka di bagian atas halaman, dan sengaja tidak memuat daftar
+          nominal, harga, tombol pembelian, maupun formulir pemesanan.
+        </p>
+        <p>
+          Selama status tersebut berlaku, tidak ada pesanan yang bisa kami
+          terima untuk game tersebut, dan tidak ada pihak yang berhak menerima
+          pembayaran atas nama FLAZZ GROUP untuk game tersebut. Jika ada yang
+          menawarkannya kepada kamu dengan mengatasnamakan kami, itu bukan kami
+          — silakan konfirmasi lebih dulu ke kanal resmi.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "gagal-dan-refund",
+    title: "Pesanan gagal, terlambat, dan pengembalian dana",
+    body: (
+      <>
+        <p>
+          Karena pemesanan dan pembayaran diselesaikan di kanal resmi FLAZZ
+          GROUP dan bukan di website ini, penanganan pesanan yang gagal atau
+          terlambat ditangani oleh kanal tempat pesanan itu dibuat — dan kanal
+          tersebut tetap kanal resmi kami, jadi ketentuan di bawah ini berlaku.
+        </p>
+        <p>
+          Ketentuan yang kami terapkan, dan yang juga kami sampaikan di FAQ
+          halaman utama, adalah sebagai berikut:
+        </p>
+        <ul>
+          <li>
+            <strong>Pesanan yang gagal diproses</strong> — pembayaran sudah kami
+            terima tetapi item tidak sampai ke akun tujuan — akan{" "}
+            <strong>diproses ulang, atau dananya dikembalikan penuh</strong>{" "}
+            apabila pemrosesan ulang tidak memungkinkan. Sampaikan lewat kanal
+            resmi dengan menyertakan bukti pembayaran dan ID akun tujuan.
+          </li>
+          <li>
+            pesanan yang sudah diproses dan diterima di akun tujuan yang benar
+            dianggap selesai;
+          </li>
+          <li>
+            pesanan yang pembayarannya sudah kami terima namun belum diproses
+            akan kami tindak lanjuti sampai selesai;
+          </li>
+          <li>
+            pesanan yang gagal atau salah tujuan karena data yang kamu berikan
+            keliru mengikuti ketentuan pada bagian sebelumnya. Item yang sudah
+            terkirim ke akun lain umumnya tidak dapat ditarik kembali, karena
+            pengirimannya terjadi di sistem penerbit game.
+          </li>
+        </ul>
+        <p>
+          Di luar keempat hal di atas kami tidak menjanjikan pengembalian dana
+          otomatis, misalnya untuk pesanan yang sudah berhasil namun kemudian
+          tidak jadi diinginkan.
+        </p>
+        <p>
+          Setiap laporan ditinjau kasus per kasus melalui kanal resmi, dengan
+          bukti pembayaran dan riwayat percakapan sebagai dasar utama.
         </p>
       </>
     ),

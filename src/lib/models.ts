@@ -12,6 +12,7 @@ export type {
   CommunityLinkModel as CommunityLink,
   FaqModel as Faq,
   FeatureModel as Feature,
+  GameModel as Game,
   HeroBannerModel as HeroBanner,
   HeroStatModel as HeroStat,
   PaymentMethodModel as PaymentMethod,

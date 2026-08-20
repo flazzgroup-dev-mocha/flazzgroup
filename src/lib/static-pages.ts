@@ -25,8 +25,8 @@ export type StaticPage = {
 export const STATIC_PAGES = [
   { path: "/about", priority: 0.6, lastModified: "2026-08-11" },
   { path: "/contact", priority: 0.6, lastModified: "2026-08-11" },
-  { path: "/privacy-policy", priority: 0.3, lastModified: "2026-08-11" },
-  { path: "/terms", priority: 0.3, lastModified: "2026-08-11" },
+  { path: "/privacy-policy", priority: 0.3, lastModified: "2026-08-20" },
+  { path: "/terms", priority: 0.3, lastModified: "2026-08-20" },
 ] as const satisfies readonly StaticPage[];
 
 /** The `lastModified` of one page, as a Date, for the sitemap. */

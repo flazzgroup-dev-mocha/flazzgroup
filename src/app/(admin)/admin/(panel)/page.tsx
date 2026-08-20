@@ -6,6 +6,7 @@ import {
   Images,
   LayoutGrid,
   Sparkles,
+  Gamepad2,
   Store,
   Users,
   Wallet,
@@ -43,7 +44,7 @@ function timeAgo(date: Date) {
 }
 
 /**
- * Eight `SELECT count(*)` round trips collapsed into one statement.
+ * Nine `SELECT count(*)` round trips collapsed into one statement.
  * The dashboard is uncached, so this runs on every load.
  */
 async function countAll() {
@@ -52,6 +53,7 @@ async function countAll() {
   >`
     SELECT
       (SELECT count(*) FROM "hero_banners")     AS banners,
+      (SELECT count(*) FROM "games")            AS games,
       (SELECT count(*) FROM "popular_services") AS popular,
       (SELECT count(*) FROM "products")         AS products,
       (SELECT count(*) FROM "brands")           AS brands,
@@ -65,7 +67,15 @@ async function countAll() {
   return Object.fromEntries(
     Object.entries(row).map(([key, value]) => [key, Number(value)])
   ) as Record<
-    "banners" | "popular" | "products" | "brands" | "features" | "payments" | "community" | "faqs",
+    | "banners"
+    | "games"
+    | "popular"
+    | "products"
+    | "brands"
+    | "features"
+    | "payments"
+    | "community"
+    | "faqs",
     number
   >;
 }
@@ -81,6 +91,7 @@ const actionTone = {
 export default async function DashboardPage() {
   const [
     banners,
+    games,
     popular,
     products,
     brands,
@@ -102,6 +113,7 @@ export default async function DashboardPage() {
     }),
   ]).then(([counts, settingsRow, activityRows]) => [
     counts.banners,
+    counts.games,
     counts.popular,
     counts.products,
     counts.brands,
@@ -120,6 +132,7 @@ export default async function DashboardPage() {
     icon: LucideIcon;
   }[] = [
     { key: "banners", label: "Hero banners", value: banners, icon: Images },
+    { key: "games", label: "Games", value: games, icon: Gamepad2 },
     { key: "brands", label: "Brands", value: brands, icon: Store },
     { key: "community", label: "Community links", value: community, icon: Users },
     { key: "payments", label: "Payment methods", value: payments, icon: Wallet },
@@ -131,10 +144,20 @@ export default async function DashboardPage() {
 
   const lastUpdated = activity[0]?.createdAt ?? settings?.updatedAt ?? null;
 
+  /**
+   * What the homepage opens on is a mode, not a switch, so it is reported as
+   * one: two rows where exactly one is always lit. Reading it as a boolean
+   * would put the dashboard back to describing a state — both on, or both off
+   * — that the settings row can no longer hold.
+   */
+  const mode = settings?.homepageMode ?? "GAME";
+
   const sections: { label: string; on: boolean }[] = [
     { label: "Hero", on: settings?.showHero ?? true },
+    { label: "Homepage: game picker", on: mode === "GAME" },
+    { label: "Homepage: top up catalogue", on: mode === "TOP_UP" },
     { label: "Popular", on: settings?.showPopular ?? true },
-    { label: "Products", on: settings?.showProducts ?? true },
+    { label: "Top up advertised", on: settings?.showProducts ?? true },
     { label: "Brands", on: settings?.showBrands ?? true },
     { label: "Features", on: settings?.showFeatures ?? true },
     { label: "Payment", on: settings?.showPayment ?? true },

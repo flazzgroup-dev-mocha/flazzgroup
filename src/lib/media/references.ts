@@ -41,6 +41,10 @@ import { prisma } from "@/lib/prisma";
  *   `blogImage.url`        The media-library table. A row here means the file
  *                          was uploaded for an article, whether or not it has
  *                          been placed yet.
+ *   `game.imageUrl`        Game-picker artwork. Added with the picker itself;
+ *                          it uses the same uploader and the same folders as
+ *                          everything above, so leaving it out would have
+ *                          reproduced the bug this list exists to prevent.
  *
  * The cost is four more counts on a delete, which happens when a human clicks
  * a button. That is not a path worth optimising against correctness.
@@ -52,6 +56,7 @@ export async function isStillReferenced(url: string) {
     }),
     prisma.product.count({ where: { imageUrl: url } }),
     prisma.brand.count({ where: { logoUrl: url } }),
+    prisma.game.count({ where: { imageUrl: url } }),
     prisma.popularService.count({ where: { imageUrl: url } }),
     prisma.paymentMethod.count({ where: { logoUrl: url } }),
     prisma.blogPost.count({

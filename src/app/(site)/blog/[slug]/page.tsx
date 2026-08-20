@@ -5,8 +5,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, Clock3, Tag as TagIcon } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
-import { getBrands, getCommunityLinks, getSettings } from "@/lib/queries";
+import {
+  getBrands,
+  getCommunityLinks,
+  getSettings,
+  getTopUpGame,
+} from "@/lib/queries";
 import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav";
+import { topUpHref } from "@/lib/games";
 import {
   getAdjacentPosts,
   getPostBySlug,
@@ -123,15 +129,16 @@ export default async function ArticlePage({
   // nothing reveals that an unpublished article exists.
   if (!post) notFound();
 
-  const [settings, brands, community, related, adjacent] = await Promise.all([
+  const [settings, brands, community, topUpGame, related, adjacent] = await Promise.all([
     getSettings(),
     getBrands(),
     getCommunityLinks(),
+    getTopUpGame(),
     getRelatedPosts(post.id, post.categoryId),
     post.publishedAt ? getAdjacentPosts(post.publishedAt) : { previous: null, next: null },
   ]);
 
-  const navLinks = buildNavLinks(settings);
+  const navLinks = buildNavLinks(settings, topUpGame);
   const base = settings.siteUrl.replace(/\/$/, "");
   const url = `${base}/blog/${post.slug}`;
 
@@ -148,7 +155,7 @@ export default async function ArticlePage({
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={buildHeaderLinks(settings)}
+        links={buildHeaderLinks(settings, topUpGame)}
         searchTargetId={primaryTargetId(settings)}
       />
 
@@ -343,15 +350,17 @@ export default async function ArticlePage({
                     aria-hidden
                     className="pointer-events-none absolute inset-x-0 -top-16 mx-auto h-40 w-72 rounded-full bg-gold/15 blur-[70px]"
                   />
+                  {/* Names whichever game the site can actually take an order
+                      for, rather than a game written into this file. */}
                   <p className="relative z-10 text-lg font-bold text-foam sm:text-xl">
-                    Siap top up Royal Dream?
+                    Siap top up {topUpGame ? topUpGame.name : "game favoritmu"}?
                   </p>
                   <p className="relative z-10 mx-auto mt-2 max-w-md text-sm text-mist">
                     Proses instan, harga transparan, admin aktif 24 jam.
                   </p>
                   <div className="relative z-10 mt-5 flex flex-wrap justify-center gap-3">
                     <Button variant="gold" size="lg" asChild>
-                      <Link href="/#royal-dream">
+                      <Link href={topUpHref(topUpGame)}>
                         Lihat harga koin
                         <ArrowRight aria-hidden />
                       </Link>

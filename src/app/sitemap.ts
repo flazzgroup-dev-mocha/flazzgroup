@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
 
-import { getSettings } from "@/lib/queries";
+import { getGames, getSettings } from "@/lib/queries";
 import { getAllPublishedPosts, getCategories } from "@/lib/blog/queries";
 import { cloudinaryUrl, isVector, socialImageUrl } from "@/lib/media/url";
 import { STATIC_PAGES, staticPageDate } from "@/lib/static-pages";
+import { topUpPath } from "@/lib/games";
 
 /**
  * Every published article is listed automatically. Drafts, scheduled posts and
@@ -106,10 +107,11 @@ function indexableImage(url: string | null | undefined, deliver: Deliver) {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [settings, posts, categories] = await Promise.all([
+  const [settings, posts, categories, games] = await Promise.all([
     getSettings(),
     getAllPublishedPosts(),
     getCategories(),
+    getGames(),
   ]);
 
   const base = settings.siteUrl.replace(/\/$/, "");
@@ -124,6 +126,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
       ...(homeImage ? { images: homeImage } : {}),
     },
+    /**
+     * One entry per game page that is worth recommending.
+     *
+     * `getGames()` has already dropped hidden rows, so what is left is the
+     * indexability question, and it is answered per page rather than per
+     * feature:
+     *
+     *   catalogue     Listed while `showProducts` is on. That switch means
+     *                 "is the top-up advertised", and a sitemap is the largest
+     *                 advertisement there is. The page itself keeps answering
+     *                 either way — an ad or a bookmark must never 404 because
+     *                 somebody tidied the navigation.
+     *
+     *   information   Listed only once somebody has written its "about" copy.
+     *                 Without it the page is a name, a picture and a notice
+     *                 saying ordering is not open — a thin doorway page, and a
+     *                 sitemap full of those is how the entries that do deserve
+     *                 attention stop getting it. The same test drives the
+     *                 page's own `noindex`, in one function, so the sitemap
+     *                 cannot recommend a page that refuses to be indexed.
+     *
+     * No `images` entry on either: the coin tiles and the key art illustrate
+     * these pages, they are not what the pages are about.
+     */
+    ...games
+      .filter((game) =>
+        game.topUpEnabled ? settings.showProducts : game.about.trim().length > 0
+      )
+      .map((game) => ({
+        url: `${base}${topUpPath(game.slug)}`,
+        lastModified: game.updatedAt,
+        changeFrequency: "weekly" as const,
+        priority: game.topUpEnabled ? 0.9 : 0.6,
+      })),
     {
       url: `${base}/blog`,
       lastModified: newestPost,

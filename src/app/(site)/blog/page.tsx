@@ -21,7 +21,7 @@ import { PostCard } from "@/components/blog/PostCard";
 import { ArchiveSchema } from "@/components/blog/ArchiveSchema";
 import { SearchTracker } from "@/components/analytics/SearchTracker";
 import { TrackedLink } from "@/components/analytics/TrackedLink";
-import { getBrands, getCommunityLinks } from "@/lib/queries";
+import { getBrands, getCommunityLinks, getTopUpGame } from "@/lib/queries";
 
 /** ISR: the archive rebuilds on demand via tags, and hourly regardless. */
 export const revalidate = 3600;
@@ -247,11 +247,12 @@ export default async function BlogIndexPage({
   // touching the database, so a crawler walking page numbers costs nothing.
   if (parsedParams.beyondLimit) notFound();
 
-  const [settings, categories, brands, community] = await Promise.all([
+  const [settings, categories, brands, community, topUpGame] = await Promise.all([
     getSettings(),
     getCategories(),
     getBrands(),
     getCommunityLinks(),
+    getTopUpGame(),
   ]);
 
   if (categorySlug && !categories.some((c) => c.slug === categorySlug)) {
@@ -282,7 +283,7 @@ export default async function BlogIndexPage({
    */
   if (!query && page > 1 && page > pageCount) notFound();
 
-  const navLinks = buildNavLinks(settings);
+  const navLinks = buildNavLinks(settings, topUpGame);
   const activeCategory = categories.find((c) => c.slug === categorySlug);
 
   /**
@@ -324,7 +325,7 @@ export default async function BlogIndexPage({
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={buildHeaderLinks(settings)}
+        links={buildHeaderLinks(settings, topUpGame)}
         searchTargetId={primaryTargetId(settings)}
       />
 

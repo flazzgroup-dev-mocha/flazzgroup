@@ -133,6 +133,77 @@ export const getHeroStats = unstable_cache(
   { tags: [CACHE_TAGS.heroStats], revalidate: REVALIDATE_SECONDS }
 );
 
+/**
+ * Every game, active or not, in display order.
+ *
+ * One query behind three readers, and deliberately unfiltered. `/top-up/<slug>`
+ * has to answer for a game the operator has hidden — hiding a game removes it
+ * from the picker, it does not un-publish a URL that ads and bookmarks already
+ * point at — so the route needs the row that `getGames()` filters out. Reading
+ * both from one cached list also means the page and the card can never disagree
+ * about a game mid-revalidation.
+ *
+ * Columns are named rather than taken wholesale so it is obvious what a card
+ * and a page each depend on. `about` is included despite being the largest
+ * column: it decides whether a game page is indexable, which the sitemap asks
+ * for every game on every build of the document.
+ */
+const fetchGames = unstable_cache(
+  async () =>
+    prisma.game.findMany({
+      orderBy: byOrder,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        imageUrl: true,
+        description: true,
+        about: true,
+        articleCategorySlug: true,
+        topUpEnabled: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    }),
+  ["games"],
+  { tags: [CACHE_TAGS.games], revalidate: REVALIDATE_SECONDS }
+);
+
+/** Exactly what a game card and a game page render. */
+export type GameCard = Awaited<ReturnType<typeof fetchGames>>[number];
+
+/** The picker: active rows only, in display order. */
+export async function getGames(): Promise<GameCard[]> {
+  return (await fetchGames()).filter((game) => game.isActive);
+}
+
+/**
+ * One game by slug, hidden ones included.
+ *
+ * Resolved from the cached list rather than by a per-slug query on purpose:
+ * the route segment is request data, and `unstable_cache` keyed by it would
+ * let a crawler walking made-up slugs mint an unbounded number of cache
+ * entries, each holding a database round trip it did not need.
+ */
+export async function getGameBySlug(slug: string): Promise<GameCard | null> {
+  return (await fetchGames()).find((game) => game.slug === slug) ?? null;
+}
+
+/**
+ * The game that owns the top-up catalogue, if any.
+ *
+ * The one place the rest of the site asks "where does a top up start" — the
+ * navbar, the footer, the homepage in TOP_UP mode, and every call to action on
+ * the static pages all read this, so moving the catalogue to another game
+ * moves all of them at once and none of them names a game in code.
+ */
+export async function getTopUpGame(): Promise<GameCard | null> {
+  return (
+    (await fetchGames()).find((game) => game.isActive && game.topUpEnabled) ??
+    null
+  );
+}
+
 export const getPopularServices = unstable_cache(
   async () =>
     prisma.popularService.findMany({ where: activeOrder, orderBy: byOrder }),
@@ -188,6 +259,7 @@ export async function getHomepageData() {
     settings,
     banners,
     heroStats,
+    games,
     popular,
     products,
     brands,
@@ -199,6 +271,7 @@ export async function getHomepageData() {
     getSettings(),
     getHeroBanners(),
     getHeroStats(),
+    getGames(),
     getPopularServices(),
     getProducts(),
     getBrands(),
@@ -213,6 +286,14 @@ export async function getHomepageData() {
     banners: banners.banners,
     bannerAspectRatio: banners.aspectRatio,
     heroStats,
+    games,
+    /**
+     * Derived from the list that was just fetched rather than awaited
+     * separately: `getTopUpGame()` would hit the same cache entry, and taking
+     * it from here makes it impossible for the picker and the top-up section
+     * to be built from two different reads.
+     */
+    topUpGame: games.find((game) => game.topUpEnabled) ?? null,
     popular,
     products,
     brands,

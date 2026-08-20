@@ -1,50 +1,28 @@
 import type { Settings } from "@/lib/queries";
-import type { Brand, Faq, Product } from "@/lib/models";
+import type { Brand, Faq } from "@/lib/models";
 import { JsonLd } from "@/components/common/JsonLd";
-import { cloudinaryUrl, isVector } from "@/lib/media/url";
+import { schemaImageUrl } from "@/lib/media/url";
 
 /**
- * JSON-LD for the homepage: organisation, site search, product catalogue and
- * the FAQ block. Every value comes from the database, so structured data can
- * never drift from what visitors see.
+ * JSON-LD for the homepage: the organisation, the website and the FAQ block.
+ * Every value comes from the database, so structured data can never drift from
+ * what visitors see.
+ *
+ * The product `ItemList` that used to live here went with the coin grid, to
+ * CatalogSchema on /top-up/royal-dream. Leaving it behind would have been the
+ * exact failure this file is written to avoid: a homepage that lists no price
+ * anywhere still telling Google it is a catalogue of eight offers.
  */
 export function StructuredData({
   settings,
   brands,
-  products,
   faqs,
 }: {
   settings: Settings;
   brands: Brand[];
-  products: Product[];
   faqs: Faq[];
 }) {
   const base = settings.siteUrl.replace(/\/$/, "");
-
-  /**
-   * Structured data is read by a crawler that has no page to resolve against,
-   * so every URL in it has to be absolute. Uploads already arrive as full
-   * Cloudinary URLs; anything served from /public does not.
-   */
-  const absolute = (url: string) =>
-    url.startsWith("http") ? url : `${base}${url}`;
-
-  /**
-   * An image URL a crawler should actually fetch.
-   *
-   * Same reasoning as the image sitemap and the article graph: name the
-   * delivery URL the page renders, not the stored original. Without the
-   * transform Cloudinary ignores the crawler's `Accept` header and returns the
-   * full-size PNG — for the product tiles that is a 2 MB file standing in for a
-   * thumbnail, and it is not a URL that appears anywhere in the markup.
-   *
-   * Vectors pass through untouched: `f_auto` would rasterise them, and the
-   * width cap is meaningless for a format that has no pixels.
-   */
-  const deliverable = (url: string, width?: number) => {
-    const full = absolute(url);
-    return isVector(full) ? full : cloudinaryUrl(full, { width });
-  };
 
   const sameAs = [
     settings.telegramUrl,
@@ -62,7 +40,7 @@ export function StructuredData({
       url: base,
       // No width cap: a logo is small already, and Google reads its intrinsic
       // dimensions. `f_auto` alone is the win here.
-      logo: deliverable(settings.logoUrl),
+      logo: schemaImageUrl(base, settings.logoUrl),
       description: settings.siteDescription,
       ...(sameAs.length > 0 ? { sameAs } : {}),
       ...(settings.telegramUrl
@@ -108,40 +86,6 @@ export function StructuredData({
       publisher: { "@id": `${base}/#organization` },
     },
   ];
-
-  if (products.length > 0) {
-    graph.push({
-      "@type": "ItemList",
-      "@id": `${base}/#catalog`,
-      name: "Top up Royal Dream",
-      itemListElement: products.map((product, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        item: {
-          "@type": "Product",
-          name: `${product.title} ${product.unit}`.trim(),
-          /**
-           * Required for a merchant listing, and the reason Search Console
-           * reported all eight products as invalid. The column is NOT NULL, so
-           * there is always something to send; it is only omitted here if an
-           * older row predates the field being filled in.
-           */
-          ...(product.imageUrl
-            ? { image: deliverable(product.imageUrl, 1200) }
-            : {}),
-          ...(product.description ? { description: product.description } : {}),
-          brand: { "@type": "Brand", name: settings.siteName },
-          offers: {
-            "@type": "Offer",
-            price: product.price,
-            priceCurrency: "IDR",
-            availability: "https://schema.org/InStock",
-            url: `${base}/#royal-dream`,
-          },
-        },
-      })),
-    });
-  }
 
   if (faqs.length > 0) {
     graph.push({

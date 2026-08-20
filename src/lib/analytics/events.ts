@@ -39,6 +39,20 @@ export type AnalyticsEvents = {
     destination: string;
   };
 
+  /**
+   * A card in the homepage game picker.
+   *
+   * The first choice a visitor makes, and the one that says which game the
+   * session is about — so it is worth its own name rather than being folded
+   * into `cta_click`, where it would be indistinguishable from every other
+   * button on the page.
+   */
+  game_click: {
+    item_id: string;
+    item_name: string;
+    destination: string;
+  };
+
   // --------------------------------------------------------------- contact
   //
   // These are the conversions. `contact_*` maps to Meta's `Contact` and is what

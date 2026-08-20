@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 export const REORDER_TABLES = {
   banners: "hero_banners",
   "hero-stats": "hero_stats",
+  games: "games",
   popular: "popular_services",
   products: "products",
   brands: "brands",

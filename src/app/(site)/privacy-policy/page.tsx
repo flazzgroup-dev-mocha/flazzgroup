@@ -18,15 +18,25 @@ import {
 /**
  * Static policy text. Nothing on this page is editable from /admin, and it
  * describes only what this codebase actually does — the analytics integrations
- * that exist in the settings row, the consent gate in front of them, and the
- * media host uploads are served from. No legal entity, address, registration
- * number or retention period is asserted, because the project does not have
- * one to assert.
+ * that exist in the settings row, the consent gate in front of them, the admin
+ * accounts and security logs the schema actually holds, and the media host
+ * uploads are served from. No legal entity, address, registration number or
+ * retention period is asserted, because the project does not have one to
+ * assert.
+ *
+ * Every claim below was checked against the code before it was written. There
+ * is no visitor account model, no order table and no checkout on this site, so
+ * the sections say so rather than describing the transaction data a top-up
+ * site is usually assumed to hold. Each named third party corresponds to a
+ * real integration: GA4 and GTM (lib/analytics/config.ts), Meta Pixel and the
+ * Conversions API relay (app/api/track/route.ts), Google Ads, Microsoft
+ * Clarity, and Cloudinary (lib/media/*). Nothing is listed that the code does
+ * not do.
  */
 export const revalidate = 86400;
 
 const DESCRIPTION =
-  "Privacy Policy FLAZZ GROUP: informasi apa yang dikumpulkan website ini, bagaimana cookie dan analitik digunakan, layanan pihak ketiga yang terlibat, dan hak kamu atas data.";
+  "Privacy Policy FLAZZ GROUP: informasi apa yang dikumpulkan website ini, data pesanan, cookie dan analitik, layanan pihak ketiga yang terlibat, keamanan data, dan hak kamu atas data.";
 
 /**
  * The date shown to readers is the same one the sitemap reports as `lastmod`.
@@ -82,6 +92,37 @@ const SECTIONS: LegalSection[] = [
         <p>
           Kami tidak meminta kata sandi akun game, kode OTP, atau PIN
           pembayaran, dan tidak pernah membutuhkannya untuk memproses pesanan.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "pesanan",
+    title: "Data pesanan dan transaksi",
+    body: (
+      <>
+        <p>
+          Bagian ini perlu dijelaskan terpisah karena sering diasumsikan
+          sebaliknya:{" "}
+          <strong>
+            website ini tidak memproses pesanan dan tidak menyimpan data
+            transaksi.
+          </strong>{" "}
+          Tidak ada formulir pemesanan, tidak ada halaman pembayaran, dan tidak
+          ada basis data pesanan di website ini.
+        </p>
+        <p>
+          Halaman nominal menampilkan pilihan dan harga; tombolnya membawa kamu
+          ke kanal resmi FLAZZ GROUP. Data pesanan — User ID atau identitas akun
+          game tujuan, nominal yang dipilih, dan bukti pembayaran — kamu
+          serahkan di kanal tersebut, bukan di sini, dan tersimpan di platform
+          yang bersangkutan.
+        </p>
+        <p>
+          Kami juga tidak memproses dan tidak menyimpan nomor kartu, saldo
+          dompet digital, maupun kredensial pembayaran apa pun. Kami tidak
+          pernah meminta kata sandi akun game, kode OTP, atau PIN pembayaran,
+          dan tidak membutuhkannya untuk memproses pesanan.
         </p>
       </>
     ),
@@ -276,6 +317,43 @@ const SECTIONS: LegalSection[] = [
     ),
   },
   {
+    id: "pengelola",
+    title: "Akun pengelola dan catatan keamanan",
+    body: (
+      <>
+        <p>
+          Website ini memiliki panel administrasi yang hanya bisa diakses
+          pengelola FLAZZ GROUP. Bagian ini menyangkut mereka, bukan pengunjung
+          — tetapi dicantumkan agar gambaran data yang kami simpan lengkap.
+        </p>
+        <ul>
+          <li>
+            <strong>Akun pengelola.</strong> Nama, alamat email, peran, dan kata
+            sandi yang disimpan dalam bentuk hash — kata sandi aslinya tidak
+            tersimpan dan tidak dapat dibaca kembali oleh siapa pun, termasuk
+            oleh kami.
+          </li>
+          <li>
+            <strong>Catatan aktivitas.</strong> Perubahan isi website —
+            siapa mengubah apa dan kapan — untuk keperluan pengelolaan
+            redaksional.
+          </li>
+          <li>
+            <strong>Catatan keamanan.</strong> Peristiwa masuk, upaya masuk yang
+            gagal, perubahan peran, dan penolakan akses, beserta alamat IP dan
+            identitas browser saat peristiwa itu terjadi. Catatan ini dibuat
+            untuk mendeteksi penyalahgunaan akses, dan disimpan terpisah dari
+            catatan aktivitas biasa justru agar tidak mudah terhapus.
+          </li>
+        </ul>
+        <p>
+          Pengunjung website tidak memiliki akun, tidak dapat mendaftar, dan
+          tidak tercatat dalam sistem ini.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "keamanan",
     title: "Keamanan data",
     body: (
@@ -308,6 +386,12 @@ const SECTIONS: LegalSection[] = [
           sistem penyedia masing-masing dan mengikuti masa penyimpanan yang
           mereka tetapkan. Percakapan customer service tersimpan pada platform
           perpesanan yang digunakan.
+        </p>
+        <p>
+          Catatan aktivitas redaksional pada panel administrasi dipangkas
+          otomatis dan hanya menyimpan entri terbaru. Catatan keamanan disimpan
+          lebih lama, karena catatan upaya masuk yang gagal tidak ada gunanya
+          jika sudah tergeser oleh perubahan isi halaman yang biasa.
         </p>
       </>
     ),

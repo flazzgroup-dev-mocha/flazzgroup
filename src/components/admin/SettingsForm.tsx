@@ -6,7 +6,8 @@ import { LoaderCircle, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError, apiRequest } from "@/lib/client-api";
-import type { FieldErrors } from "@/lib/validators";
+import { cn } from "@/lib/utils";
+import type { FieldErrors, HomepageModeValue } from "@/lib/validators";
 import type { WebsiteSettings } from "@/lib/models";
 import { Button } from "@/components/ui/button";
 import { SwitchRow } from "@/components/ui/switch";
@@ -34,6 +35,7 @@ type Draft = {
   instagramUrl: string;
   tiktokUrl: string;
   youtubeUrl: string;
+  homepageMode: HomepageModeValue;
   showHero: boolean;
   showPopular: boolean;
   showProducts: boolean;
@@ -56,6 +58,32 @@ type Draft = {
   googleSiteVerification: string;
 };
 
+/**
+ * The two things the homepage's main slot can be.
+ *
+ * Rendered as a radio group rather than two switches, and that is the whole
+ * point of this control: the underlying column holds one value, so "both on"
+ * and "both off" are states the panel cannot produce and the database cannot
+ * hold. The pair of booleans this replaces could reach both, and production
+ * had reached "both off" — a homepage with an empty middle.
+ */
+const homepageModes: {
+  value: HomepageModeValue;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "GAME",
+    label: "Game",
+    hint: "The homepage opens on the game picker. A visitor chooses a game, then goes to that game’s page.",
+  },
+  {
+    value: "TOP_UP",
+    label: "Top Up",
+    hint: "The homepage opens on the top-up catalogue for whichever game has Top up enabled in Games.",
+  },
+];
+
 const sectionToggles: {
   key: keyof Draft;
   label: string;
@@ -63,7 +91,11 @@ const sectionToggles: {
 }[] = [
   { key: "showHero", label: "Hero slider", hint: "Banners and the stats strip." },
   { key: "showPopular", label: "Popular services", hint: "“Populer Hari Ini” cards." },
-  { key: "showProducts", label: "Products", hint: "Royal Dream coin grid." },
+  {
+    key: "showProducts",
+    label: "Advertise the top up",
+    hint: "Links the active game’s top-up page from the menu, footer and sitemap. The page itself always answers.",
+  },
   { key: "showBrands", label: "Brands", hint: "“Brand Kami” grid." },
   { key: "showFeatures", label: "Features", hint: "“Why FLAZZ” grid." },
   { key: "showPayment", label: "Payment methods", hint: "Marquee of accepted methods." },
@@ -157,6 +189,7 @@ export function SettingsForm({ settings }: { settings: WebsiteSettings }) {
     instagramUrl: settings.instagramUrl,
     tiktokUrl: settings.tiktokUrl,
     youtubeUrl: settings.youtubeUrl,
+    homepageMode: settings.homepageMode,
     showHero: settings.showHero,
     showPopular: settings.showPopular,
     showProducts: settings.showProducts,
@@ -512,12 +545,78 @@ export function SettingsForm({ settings }: { settings: WebsiteSettings }) {
         </CardContent>
       </Card>
 
+      {/* Homepage mode */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Homepage mode</CardTitle>
+          <p className="text-xs text-fog">
+            What the homepage opens on. One of the two, never both — the game
+            picker and the top-up catalogue are alternatives, not a combination.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {/*
+            A real radio group, not two switches that happen to be styled like
+            one. `name` is what makes the browser enforce the exclusivity, and
+            the fieldset is what makes a screen reader read the two options as
+            one question rather than two unrelated checkboxes.
+          */}
+          <fieldset className="grid gap-2 sm:grid-cols-2">
+            <legend className="sr-only">Homepage mode</legend>
+
+            {homepageModes.map((mode) => {
+              const selected = draft.homepageMode === mode.value;
+
+              return (
+                <label
+                  key={mode.value}
+                  className={cn(
+                    "flex cursor-pointer gap-3 rounded-xl border p-3.5 transition-colors duration-200",
+                    selected
+                      ? "border-gold/40 bg-gold/[.06]"
+                      : "border-white/10 bg-white/[.02] hover:border-white/20"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="homepageMode"
+                    value={mode.value}
+                    checked={selected}
+                    onChange={() => patch({ homepageMode: mode.value })}
+                    className="mt-0.5 size-4 shrink-0 accent-[#FFD54A]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foam">
+                      {mode.label}
+                    </span>
+                    <span className="mt-1 block text-xs leading-relaxed text-fog">
+                      {mode.hint}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
+
+          {draft.homepageMode === "TOP_UP" ? (
+            <p className="mt-3 rounded-xl border border-white/10 bg-white/[.03] px-3.5 py-2.5 text-xs text-mist">
+              The catalogue shown is the one belonging to the game with{" "}
+              <span className="font-semibold text-foam">Top up enabled</span> in
+              Games. If no game has it, or there are no active products, the
+              homepage falls back to the game picker rather than rendering an
+              empty section.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {/* Sections */}
       <Card>
         <CardHeader>
           <CardTitle>Homepage sections</CardTitle>
           <p className="text-xs text-fog">
-            Turning a section off removes it from the page entirely.
+            The supporting sections, each on its own. What the page opens on is
+            decided above.
           </p>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">

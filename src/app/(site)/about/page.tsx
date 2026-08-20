@@ -10,9 +10,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { getBrands, getSettings } from "@/lib/queries";
+import { getBrands, getSettings, getTopUpGame } from "@/lib/queries";
 import { staticPageMetadata } from "@/lib/seo";
-import { primaryTargetId } from "@/lib/site-nav";
+import { topUpHref } from "@/lib/games";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHero } from "@/components/common/PageHero";
@@ -74,9 +74,17 @@ const VALUES: { icon: LucideIcon; title: string; body: string }[] = [
 ];
 
 export default async function AboutPage() {
-  const [settings, brands] = await Promise.all([getSettings(), getBrands()]);
+  const [settings, brands, topUpGame] = await Promise.all([
+    getSettings(),
+    getBrands(),
+    getTopUpGame(),
+  ]);
 
-  const catalogHref = `/#${primaryTargetId(settings)}`;
+  // These buttons say "see the price list" and "start a top up", so they open
+  // the top-up page itself rather than the homepage game picker — and they
+  // follow whichever game owns the catalogue, so moving it in the panel moves
+  // them too.
+  const catalogHref = topUpHref(topUpGame);
 
   return (
     <PageShell>

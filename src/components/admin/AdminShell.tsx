@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Newspaper,
   Flame,
+  Gamepad2,
   Gauge,
   HelpCircle,
   Images,
@@ -45,6 +46,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/banners", label: "Hero Banner", icon: Images },
       { href: "/admin/hero-stats", label: "Hero Stats", icon: Activity },
+      { href: "/admin/games", label: "Games", icon: Gamepad2 },
       { href: "/admin/popular", label: "Popular", icon: Flame },
       { href: "/admin/products", label: "Products", icon: LayoutGrid },
       { href: "/admin/brands", label: "Brands", icon: Store },

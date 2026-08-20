@@ -8,12 +8,36 @@ import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/common/SectionHeading";
 import { Reveal, RevealItem } from "@/components/common/Reveal";
 
-export function ProductsSection({ products }: { products: Product[] }) {
+/**
+ * The top-up catalogue: the amounts on offer, and where to buy each one.
+ *
+ * Rendered in exactly two places — the game page of whichever game has
+ * `topUpEnabled`, and the homepage when it is in TOP_UP mode — from the same
+ * rows, by this one component. The game's name is a prop rather than a literal
+ * because the catalogue can be moved to another game from the panel, and a
+ * heading that still said "Royal Dream" afterwards would be the site's most
+ * visible lie.
+ *
+ * `id="royal-dream"` is kept as the section anchor. It is production data:
+ * hero slides and brand rows written before this release link to
+ * `#royal-dream`, and those rows cannot be rewritten from here. The fragment
+ * has to keep resolving to the catalogue, whatever the catalogue is called.
+ */
+export function ProductsSection({
+  products,
+  gameName = "Royal Dream",
+  /** Screen-reader/anchor variant. See the note about the legacy fragment. */
+  anchorId = "royal-dream",
+}: {
+  products: Product[];
+  gameName?: string;
+  anchorId?: string;
+}) {
   if (products.length === 0) return null;
 
   return (
     <section
-      id="royal-dream"
+      id={anchorId}
       aria-labelledby="products-title"
       className="relative scroll-mt-28 py-12 sm:py-16"
     >
@@ -24,20 +48,26 @@ export function ProductsSection({ products }: { products: Product[] }) {
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/*
+          The note describes the order as it actually happens, which is not
+          what it used to say. "Isi User ID, bayar, koin masuk otomatis"
+          described an on-site checkout this site does not have: every card
+          links out to the official FLAZZ GROUP store, and the User ID and the
+          payment are collected there.
+
+          The status chip that sat beside this heading — "Server aktif —
+          antrean kosong" — is gone for the same reason. Nothing on this site
+          measures a queue, so it was a live-looking indicator wired to
+          nothing.
+        */}
         <SectionHeading
-          eyebrow="Royal Dream"
+          eyebrow={gameName}
           title={
             <span id="products-title">
               Pilih <span className="text-royal">nominal koin</span>
             </span>
           }
-          note="Isi User ID, bayar, koin masuk otomatis."
-          action={
-            <span className="glass-soft inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold text-mist">
-              <span className="size-2 rounded-full bg-online shadow-[0_0_10px_#35E0A1]" />
-              Server aktif — antrean kosong
-            </span>
-          }
+          note="Pilih nominal yang kamu butuhkan, lanjutkan ke kanal resmi FLAZZ GROUP, lalu masukkan User ID dan selesaikan pembayaran."
         />
 
         <Reveal

@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { getBrands, getCommunityLinks, getSettings } from "@/lib/queries";
+import {
+  getBrands,
+  getCommunityLinks,
+  getSettings,
+  getTopUpGame,
+} from "@/lib/queries";
 import { buildHeaderLinks, buildNavLinks, primaryTargetId } from "@/lib/site-nav";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -19,10 +24,16 @@ import { Footer } from "@/components/layout/Footer";
  * chrome along with the page.
  */
 export async function PageShell({ children }: { children: ReactNode }) {
-  const [settings, brands, community] = await Promise.all([
+  const [settings, brands, community, topUpGame] = await Promise.all([
     getSettings(),
     getBrands(),
     getCommunityLinks(),
+    /**
+     * Read here so the menu on a policy page names the same game as the menu
+     * on the homepage. It costs no round trip: it resolves from the same
+     * cached `games` entry the picker was built from.
+     */
+    getTopUpGame(),
   ]);
 
   return (
@@ -43,7 +54,7 @@ export async function PageShell({ children }: { children: ReactNode }) {
         logoUrl={settings.logoUrl}
         tickerEnabled={settings.tickerEnabled}
         tickerText={settings.tickerText}
-        links={buildHeaderLinks(settings)}
+        links={buildHeaderLinks(settings, topUpGame)}
         searchTargetId={primaryTargetId(settings)}
       />
 
@@ -53,7 +64,7 @@ export async function PageShell({ children }: { children: ReactNode }) {
 
       <Footer
         settings={settings}
-        navLinks={buildNavLinks(settings)}
+        navLinks={buildNavLinks(settings, topUpGame)}
         brands={brands}
         community={community}
       />

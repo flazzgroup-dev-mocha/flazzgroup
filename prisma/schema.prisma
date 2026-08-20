@@ -150,6 +150,21 @@ enum ChatPosition {
   RIGHT
 }
 
+/// What the homepage opens on.
+///
+/// One column with two values rather than two booleans, because the two are
+/// alternatives and never a combination: a homepage that showed the game
+/// picker *and* the coin grid would ask the visitor to choose a game and then
+/// immediately offer amounts for one particular game, which describes nothing
+/// coherent. A pair of switches makes that state reachable — and reachable by
+/// accident, from two different screens — where an enum makes it unspellable.
+enum HomepageMode {
+  /// The game picker. A visitor chooses a game, then goes to its page.
+  GAME
+  /// The top-up catalogue for whichever game has `topUpEnabled`, inline.
+  TOP_UP
+}
+
 /// Single row, always id = "settings".
 model WebsiteSettings {
   id String @id @default("settings")
@@ -221,9 +236,24 @@ model WebsiteSettings {
   /// google-site-verification content, for Search Console.
   googleSiteVerification String  @default("")
 
+  // ------------------------------------------------------- homepage mode
+  //
+  // What the homepage's main slot renders. Everything below it — popular,
+  // brands, features, payment, community, FAQ — is unaffected; those are
+  // supporting sections and each keeps its own switch.
+  homepageMode HomepageMode @default(GAME)
+
   // Homepage section switches
   showHero      Boolean @default(true)
+  /// Deprecated, unread. Replaced by `homepageMode`, which is what the
+  /// homepage now asks. Kept as a column — defaulted, never written — so this
+  /// release can be rolled back without the previous one finding the column
+  /// missing. Safe to drop once the deploy has proven itself.
+  showGames     Boolean @default(true)
   showPopular   Boolean @default(true)
+  /// Whether the active top-up game is advertised in the menu, footer and
+  /// sitemap. The page itself always answers: an ad or a bookmark pointing at
+  /// it must never turn into a 404 because somebody flipped a switch.
   showProducts  Boolean @default(true)
   showBrands    Boolean @default(true)
   showFeatures  Boolean @default(true)
@@ -394,6 +424,91 @@ model Product {
 
   @@index([isActive, order])
   @@map("products")
+}
+
+// --------------------------------------------------------------- games
+
+/// Where a game card used to send the visitor.
+///
+/// Deprecated. Routing is the application's decision now: every game has a
+/// page of its own at `/top-up/<slug>`, and what that page *contains* is
+/// decided by `topUpEnabled` rather than by a destination an editor typed.
+/// The reason is the one this enum could not solve — a stored destination is a
+/// second source of truth about where a game lives, so a card could point at a
+/// blog category that had been renamed, or at a URL that had never existed.
+/// Both were true in production: three of four cards linked to category slugs
+/// with no matching category.
+///
+/// The type and its two columns stay declared so a rollback finds the schema
+/// it expects. Nothing reads them.
+enum GameDestination {
+  TOP_UP
+  BLOG_CATEGORY
+  CUSTOM_URL
+}
+
+/// One game FLAZZ GROUP covers, and the page that belongs to it.
+///
+/// This is the catalogue the site is organised around: a row here is a card in
+/// the homepage picker *and* a route at `/top-up/<slug>`. Adding a game is a
+/// row plus an image, never a deploy.
+///
+/// It deliberately holds no price and no purchase mechanics. Those live in the
+/// `products` table, which is a single site-wide catalogue — see
+/// `topUpEnabled` for what that means and why exactly one game can own it.
+model Game {
+  id   String @id @default(cuid())
+  name String
+  /// Stable public identifier, and the route: `/top-up/<slug>`. Unique, so two
+  /// cards cannot claim the same page.
+  slug String @unique
+
+  /// Card artwork. Square — the picker crops to 1:1.
+  imageUrl String
+  /// One line under the title. The card has no room for a paragraph.
+  description String @default("")
+
+  /// Long-form copy for the game's own page, as plain paragraphs.
+  ///
+  /// Load-bearing rather than decorative: a game page with nothing but a name
+  /// and a picture is a thin doorway page, so an empty value here is what
+  /// makes the page `noindex` and keeps it out of the sitemap. Filling it in
+  /// is what makes the page worth indexing.
+  about String @default("")
+
+  /// Optional BlogCategory slug. When it names a category that exists and has
+  /// published posts, the game's page links to those articles; when it does
+  /// not, nothing is rendered — which is the fix for cards that used to link
+  /// to `/blog?kategori=…` for categories nobody had created.
+  articleCategorySlug String @default("")
+
+  /// Whether this game's page shows the top-up catalogue.
+  ///
+  /// **At most one game may have this on**, enforced by the API: the
+  /// `products` table is a single site-wide list with no game column, so a
+  /// second game switched on would show the first game's amounts under the
+  /// second game's name — a page that lies about what it sells. Saving a game
+  /// with this on therefore turns it off everywhere else, in one transaction.
+  ///
+  /// Every other game's page is informational, and says so.
+  topUpEnabled Boolean @default(false)
+
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  // ---------------------------------------------- deprecated, unread
+  //
+  // Superseded by `topUpEnabled` and `articleCategorySlug`, which the
+  // migration backfilled from them. Kept so this release can be rolled back.
+  destinationType  GameDestination @default(BLOG_CATEGORY)
+  destinationValue String          @default("")
+
+  /// The public query: active rows, in display order.
+  @@index([isActive, order])
+  @@map("games")
 }
 
 // -------------------------------------------------------------- brands
